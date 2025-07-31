@@ -1,0 +1,126 @@
+我正在使用vben admin开发一个前端项目，现在需要和后端联调接口。由于当前项目不需要登陆功能，是从第三方跳转过来的。联调的时候我需要改动哪些地方，以及需要注意什么，我本地可以写死登陆的token
+在使用 vben admin 进行接口联调时，由于您的项目不需要登录功能且可以写死 token，需要修改以下几个地方：
+
+## 1. 配置接口请求地址
+
+在 `.env.development` 文件中配置后端接口地址：
+```env
+VITE_GLOB_API_URL=/api
+VITE_GLOB_API_URL_PREFIX=
+```
+
+如果后端有独立地址，可以配置代理，在 `vite.config.ts` 中：
+```typescript
+proxy: {
+  '/api': {
+    target: 'http://localhost:8080', // 后端地址
+    changeOrigin: true,
+    rewrite: (path) => path.replace(/^\/api/, '')
+  }
+}
+```
+
+## 2. 写死 Token
+
+在 `src/utils/auth/index.ts` 或相关的 token 管理文件中：
+```typescript
+// 写死 token
+const FIXED_TOKEN = 'your-fixed-token-here';
+
+export function getToken(): string {
+  // 直接返回固定 token
+  return FIXED_TOKEN;
+}
+
+export function setToken(token: string) {
+  // 如果需要，可以留空或保持原逻辑
+}
+```
+
+## 3. 修改请求拦截器
+
+在 `src/utils/http/axios/index.ts` 中，确保请求头携带 token：
+```typescript
+// 请求拦截器配置
+requestInterceptors: [
+  (config) => {
+    const token = getToken();
+    if (token && config?.requestOptions?.withToken !== false) {
+      // 根据后端要求设置 token 字段名
+      config.headers.Authorization = `Bearer ${token}`;
+      // 或者
+      // config.headers['X-Token'] = token;
+    }
+    return config;
+  }
+]
+```
+
+## 4. 跳过登录页面
+
+修改路由守卫，在 `src/router/guard/permissionGuard.ts` 中：
+```typescript
+export function createPermissionGuard(router: Router) {
+  router.beforeEach(async (to, from, next) => {
+    // 直接放行，不做登录校验
+    next();
+    
+    // 或者模拟已登录状态
+    // const userStore = useUserStore();
+    // if (!userStore.getToken) {
+    //   userStore.setToken(FIXED_TOKEN);
+    //   // 可以同时设置一些模拟的用户信息
+    //   userStore.setUserInfo({ 
+    //     userId: 'test', 
+    //     username: 'test' 
+    //   });
+    // }
+    // next();
+  });
+}
+```
+
+## 5. 处理第三方跳转参数
+
+如果从第三方跳转过来需要携带参数：
+```typescript
+// 在 App.vue 或 main layout 中获取 URL 参数
+import { useRoute } from 'vue-router';
+
+const route = useRoute();
+
+// 获取 URL 参数
+const token = route.query.token as string;
+const userId = route.query.userId as string;
+
+// 存储到 store 或 localStorage
+if (token) {
+  setToken(token);
+}
+```
+
+## 6. 注意事项
+
+1. **CORS 跨域问题**：确保后端配置了正确的 CORS 策略，或使用代理解决
+   
+2. **接口响应格式**：检查后端接口返回格式是否符合 vben 的预期，可能需要在响应拦截器中做转换：
+   ```typescript
+   responseInterceptors: [
+     (response) => {
+       const { data } = response;
+       // 根据后端实际返回格式调整
+       if (data.code !== 0) {
+         // 处理错误
+       }
+       return response;
+     }
+   ]
+   ```
+
+3. **权限和菜单**：如果不需要动态权限，可以在 `src/router/routes/modules` 中配置静态路由
+
+4. **环境变量**：不同环境使用不同的配置文件（`.env.development`、`.env.production`）
+
+5. **Mock 数据**：开发时如果后端接口未就绪，可以使用 vben 的 mock 功能先行开发
+
+这样配置后，您就可以跳过登录流程，直接进行接口联调了。根据实际项目需求，可能还需要调整其他细节配置。
