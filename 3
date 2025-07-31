@@ -1,0 +1,484 @@
+请详细的说下vben admin中的src/utils/http/axios/index.ts文件和src/router/guard/permissionGuard.ts文件
+我来详细介绍这两个核心文件的结构和功能：
+
+## 1. src/utils/http/axios/index.ts 文件详解
+
+这是 vben admin 的 HTTP 请求封装文件，基于 axios 进行了二次封装：
+
+### 文件结构和主要功能
+
+```typescript
+import type { AxiosResponse } from 'axios';
+import type { RequestOptions, Result } from '/#/axios';
+import type { AxiosTransform, CreateAxiosOptions } from './axiosTransform';
+
+import { VAxios } from './Axios';
+import { checkStatus } from './checkStatus';
+import { useGlobSetting } from '/@/hooks/setting';
+import { useMessage } from '/@/hooks/web/useMessage';
+import { RequestEnum, ResultEnum, ContentTypeEnum } from '/@/enums/httpEnum';
+import { isString } from '/@/utils/is';
+import { getToken } from '/@/utils/auth';
+import { setObjToUrlParams, deepMerge } from '/@/utils';
+import { useErrorLogStoreWithOut } from '/@/store/modules/errorLog';
+import { useI18n } from '/@/hooks/web/useI18n';
+import { joinTimestamp, formatRequestDate } from './helper';
+import { useUserStoreWithOut } from '/@/store/modules/user';
+
+const globSetting = useGlobSetting();
+const urlPrefix = globSetting.urlPrefix;
+const { createMessage, createErrorModal } = useMessage();
+
+/**
+ * @description: 数据处理，方便区分多种处理方式
+ */
+const transform: AxiosTransform = {
+  /**
+   * @description: 处理请求数据。如果数据不是预期格式，可直接抛出错误
+   */
+  transformRequestHook: (res: AxiosResponse<Result>, options: RequestOptions) => {
+    const { t } = useI18n();
+    const { isTransformResponse, isReturnNativeResponse } = options;
+    
+    // 是否返回原生响应头 比如：需要获取响应头时使用该属性
+    if (isReturnNativeResponse) {
+      return res;
+    }
+    
+    // 不进行任何处理，直接返回
+    if (!isTransformResponse) {
+      return res.data;
+    }
+    
+    // 错误的时候返回
+    const { data } = res;
+    if (!data) {
+      throw new Error(t('sys.api.apiRequestFailed'));
+    }
+    
+    //  这里 code，result，message为 后台统一的字段
+    const { code, result, message } = data;
+
+    // 请求成功
+    const hasSuccess = data && Reflect.has(data, 'code') && code === ResultEnum.SUCCESS;
+    if (hasSuccess) {
+      return result;
+    }
+
+    // 在此处根据自己项目的实际情况对不同的code执行不同的操作
+    // 如果不希望中断当前请求，请return数据，否则直接抛出异常即可
+    let timeoutMsg = '';
+    switch (code) {
+      case ResultEnum.TIMEOUT:
+        timeoutMsg = t('sys.api.timeoutMessage');
+        const userStore = useUserStoreWithOut();
+        userStore.setToken(undefined);
+        userStore.logout(true);
+        break;
+      default:
+        if (message) {
+          timeoutMsg = message;
+        }
+    }
+
+    // errorMessageMode='modal'的时候会显示modal错误弹窗，而不是消息提示，用于一些比较重要的错误
+    if (options.errorMessageMode === 'modal') {
+      createErrorModal({ title: t('sys.api.errorTip'), content: timeoutMsg });
+    } else if (options.errorMessageMode === 'message') {
+      createMessage.error(timeoutMsg);
+    }
+
+    throw new Error(timeoutMsg || t('sys.api.apiRequestFailed'));
+  },
+
+  // 请求之前处理config
+  beforeRequestHook: (config, options) => {
+    const { apiUrl, joinPrefix, joinParamsToUrl, formatDate, joinTime = true, urlPrefix } = options;
+
+    if (joinPrefix) {
+      config.url = `${urlPrefix}${config.url}`;
+    }
+
+    if (apiUrl && isString(apiUrl)) {
+      config.url = `${apiUrl}${config.url}`;
+    }
+    
+    const params = config.params || {};
+    const data = config.data || false;
+    
+    formatDate && data && !isString(data) && formatRequestDate(data);
+    
+    if (config.method?.toUpperCase() === RequestEnum.GET) {
+      if (!isString(params)) {
+        // 给 get 请求加上时间戳参数，避免从缓存中拿数据
+        config.params = Object.assign(params || {}, joinTimestamp(joinTime, false));
+      } else {
+        // 兼容restful风格
+        config.url = config.url + params + `${joinTimestamp(joinTime, true)}`;
+        config.params = undefined;
+      }
+    } else {
+      if (!isString(params)) {
+        formatDate && formatRequestDate(params);
+        if (Reflect.has(config, 'data') && config.data && Object.keys(config.data).length > 0) {
+          config.data = data;
+          config.params = params;
+        } else {
+          // 非GET请求如果没有提供data，则将params视为data
+          config.data = params;
+          config.params = undefined;
+        }
+        if (joinParamsToUrl) {
+          config.url = setObjToUrlParams(
+            config.url as string,
+            Object.assign({}, config.params, config.data),
+          );
+        }
+      } else {
+        // 兼容restful风格
+        config.url = config.url + params;
+        config.params = undefined;
+      }
+    }
+    return config;
+  },
+
+  /**
+   * @description: 请求拦截器处理
+   */
+  requestInterceptors: (config, options) => {
+    // 请求之前处理token
+    const token = getToken();
+    if (token && (config as Recordable)?.requestOptions?.withToken !== false) {
+      // jwt token
+      (config as Recordable).headers.Authorization = options.authenticationScheme
+        ? `${options.authenticationScheme} ${token}`
+        : token;
+    }
+    return config;
+  },
+
+  /**
+   * @description: 响应拦截器处理
+   */
+  responseInterceptors: (res: AxiosResponse<any>) => {
+    return res;
+  },
+
+  /**
+   * @description: 响应错误处理
+   */
+  responseInterceptorsCatch: (error: any) => {
+    const { t } = useI18n();
+    const errorLogStore = useErrorLogStoreWithOut();
+    errorLogStore.addAjaxErrorInfo(error);
+    const { response, code, message, config } = error || {};
+    const errorMessageMode = config?.requestOptions?.errorMessageMode || 'none';
+    const msg: string = response?.data?.error?.message ?? '';
+    const err: string = error?.toString?.() ?? '';
+    let errMessage = '';
+
+    try {
+      if (code === 'ECONNABORTED' && message.indexOf('timeout') !== -1) {
+        errMessage = t('sys.api.apiTimeoutMessage');
+      }
+      if (err?.includes('Network Error')) {
+        errMessage = t('sys.api.networkExceptionMsg');
+      }
+
+      if (errMessage) {
+        if (errorMessageMode === 'modal') {
+          createErrorModal({ title: t('sys.api.errorTip'), content: errMessage });
+        } else if (errorMessageMode === 'message') {
+          createMessage.error(errMessage);
+        }
+        return Promise.reject(error);
+      }
+    } catch (error) {
+      throw new Error(error as unknown as string);
+    }
+
+    checkStatus(error?.response?.status, msg, errorMessageMode);
+    return Promise.reject(error);
+  },
+};
+
+function createAxios(opt?: Partial<CreateAxiosOptions>) {
+  return new VAxios(
+    deepMerge(
+      {
+        // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#authentication_schemes
+        // authentication schemes，e.g: Bearer
+        authenticationScheme: 'Bearer',
+        timeout: 10 * 1000,
+        // 基础接口地址
+        // baseURL: globSetting.apiUrl,
+
+        headers: { 'Content-Type': ContentTypeEnum.JSON },
+        // 如果是form-data格式
+        // headers: { 'Content-Type': ContentTypeEnum.FORM_URLENCODED },
+        // 数据处理方式
+        transform,
+        // 配置项，下面的选项都可以在独立的接口请求中覆盖
+        requestOptions: {
+          // 默认将prefix 添加到url
+          joinPrefix: true,
+          // 是否返回原生响应头 比如：需要获取响应头时使用该属性
+          isReturnNativeResponse: false,
+          // 需要对返回数据进行处理
+          isTransformResponse: true,
+          // post请求的时候添加参数到url
+          joinParamsToUrl: false,
+          // 格式化提交参数时间
+          formatDate: true,
+          // 消息提示类型
+          errorMessageMode: 'message',
+          // 接口地址
+          apiUrl: globSetting.apiUrl,
+          // 接口拼接地址
+          urlPrefix: urlPrefix,
+          //  是否加入时间戳
+          joinTime: true,
+          // 忽略重复请求
+          ignoreCancelToken: true,
+          // 是否携带token
+          withToken: true,
+        },
+      },
+      opt || {},
+    ),
+  );
+}
+
+export const defHttp = createAxios();
+```
+
+### 主要配置项说明
+
+1. **transformRequestHook**: 响应数据转换
+   - 处理后端返回的数据格式
+   - 统一错误处理
+   - 根据 code 判断请求是否成功
+
+2. **beforeRequestHook**: 请求前的处理
+   - URL 拼接处理
+   - 参数格式化
+   - GET 请求添加时间戳
+
+3. **requestInterceptors**: 请求拦截器
+   - 自动添加 token 到请求头
+   - 可以添加其他通用请求头
+
+4. **responseInterceptorsCatch**: 错误响应处理
+   - 网络错误
+   - 超时错误
+   - HTTP 状态码错误
+
+### 使用示例
+
+```typescript
+// 基本使用
+import { defHttp } from '@/utils/http/axios';
+
+// GET 请求
+export const getUserList = (params) => {
+  return defHttp.get({
+    url: '/user/list',
+    params,
+  });
+};
+
+// POST 请求
+export const createUser = (data) => {
+  return defHttp.post({
+    url: '/user/create',
+    data,
+  }, {
+    // 可以覆盖默认配置
+    errorMessageMode: 'modal',
+    isTransformResponse: false,
+  });
+};
+```
+
+## 2. src/router/guard/permissionGuard.ts 文件详解
+
+这是路由权限守卫文件，控制页面访问权限：
+
+### 文件结构
+
+```typescript
+import type { Router, RouteRecordRaw } from 'vue-router';
+import { usePermissionStoreWithOut } from '/@/store/modules/permission';
+import { PageEnum } from '/@/enums/pageEnum';
+import { useUserStoreWithOut } from '/@/store/modules/user';
+import { PAGE_NOT_FOUND_ROUTE } from '/@/router/routes/basic';
+import { RootRoute } from '/@/router/routes';
+
+const LOGIN_PATH = PageEnum.BASE_LOGIN;
+const ROOT_PATH = RootRoute.path;
+
+// 白名单路由
+const whitePathList: PageEnum[] = [LOGIN_PATH];
+
+export function createPermissionGuard(router: Router) {
+  const userStore = useUserStoreWithOut();
+  const permissionStore = usePermissionStoreWithOut();
+
+  router.beforeEach(async (to, from, next) => {
+    // 从路由跳转开始的处理
+    if (
+      from.path === ROOT_PATH &&
+      to.path === PageEnum.BASE_HOME &&
+      userStore.getUserInfo.homePath &&
+      userStore.getUserInfo.homePath !== PageEnum.BASE_HOME
+    ) {
+      next(userStore.getUserInfo.homePath);
+      return;
+    }
+
+    const token = userStore.getToken;
+
+    // 白名单路由直接放行
+    if (whitePathList.includes(to.path as PageEnum)) {
+      if (to.path === LOGIN_PATH && token) {
+        const isSessionTimeout = userStore.getSessionTimeout;
+        try {
+          await userStore.afterLoginAction();
+          if (!isSessionTimeout) {
+            next((to.query?.redirect as string) || '/');
+            return;
+          }
+        } catch {}
+      }
+      next();
+      return;
+    }
+
+    // token不存在
+    if (!token) {
+      // 可以在没有权限的情况下访问，需要在路由meta中设置ignoreAuth为true
+      if (to.meta.ignoreAuth) {
+        next();
+        return;
+      }
+
+      // 重定向到登录页
+      const redirectData: { path: string; replace: boolean; query?: Recordable<string> } = {
+        path: LOGIN_PATH,
+        replace: true,
+      };
+      if (to.path) {
+        redirectData.query = {
+          ...redirectData.query,
+          redirect: to.path,
+        };
+      }
+      next(redirectData);
+      return;
+    }
+
+    // 处理登录后跳转到404页面
+    if (
+      from.path === LOGIN_PATH &&
+      to.name === PAGE_NOT_FOUND_ROUTE.name &&
+      to.fullPath !== (userStore.getUserInfo.homePath || PageEnum.BASE_HOME)
+    ) {
+      next(userStore.getUserInfo.homePath || PageEnum.BASE_HOME);
+      return;
+    }
+
+    // 获取用户信息
+    if (userStore.getLastUpdateTime === 0) {
+      try {
+        await userStore.getUserInfoAction();
+      } catch (err) {
+        next();
+        return;
+      }
+    }
+
+    // 动态路由处理
+    if (permissionStore.getIsDynamicAddedRoute) {
+      next();
+      return;
+    }
+
+    // 构建路由
+    const routes = await permissionStore.buildRoutesAction();
+
+    routes.forEach((route) => {
+      router.addRoute(route as unknown as RouteRecordRaw);
+    });
+
+    router.addRoute(PAGE_NOT_FOUND_ROUTE as unknown as RouteRecordRaw);
+
+    permissionStore.setDynamicAddedRoute(true);
+
+    if (to.name === PAGE_NOT_FOUND_ROUTE.name) {
+      // 动态添加路由后，此处应当重定向到fullPath，否则会加载404页面内容
+      next({ path: to.fullPath, replace: true, query: to.query });
+    } else {
+      const redirectPath = (from.query.redirect || to.path) as string;
+      const redirect = decodeURIComponent(redirectPath);
+      const nextData = to.path === redirect ? { ...to, replace: true } : { path: redirect };
+      next(nextData);
+    }
+  });
+}
+```
+
+### 主要功能说明
+
+1. **白名单机制**
+   - `whitePathList` 定义不需要权限的路由
+   - 通常包含登录页、错误页等
+
+2. **Token 验证**
+   - 检查用户是否有有效的 token
+   - 无 token 则重定向到登录页
+
+3. **路由 Meta 配置**
+   - `ignoreAuth`: 忽略权限验证
+   - 可在路由配置中设置
+
+4. **动态路由**
+   - 根据用户权限动态添加路由
+   - 防止未授权访问
+
+5. **用户信息获取**
+   - 首次进入时获取用户信息
+   - 缓存机制避免重复请求
+
+### 自定义修改示例
+
+```typescript
+// 1. 添加更多白名单
+const whitePathList: string[] = [LOGIN_PATH, '/public', '/demo'];
+
+// 2. 自定义权限验证逻辑
+router.beforeEach(async (to, from, next) => {
+  // 特定页面的自定义处理
+  if (to.path === '/special-page') {
+    // 自定义验证逻辑
+    const hasSpecialPermission = await checkSpecialPermission();
+    if (!hasSpecialPermission) {
+      next('/403');
+      return;
+    }
+  }
+  
+  // 继续原有逻辑...
+});
+
+// 3. 路由配置中使用 meta
+{
+  path: '/public-page',
+  meta: {
+    ignoreAuth: true, // 忽略权限
+    title: '公开页面',
+  }
+}
+```
+
+这两个文件是 vben admin 的核心文件，理解它们的工作原理对于项目开发和调试非常重要。
