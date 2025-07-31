@@ -1,0 +1,193 @@
+我需要联调直接访问要页面的接口，需要改动哪些地方和注意什么
+要直接访问特定页面进行接口联调，需要做以下修改：
+
+## 1. 修改路由配置
+
+确保目标页面路由可以直接访问，在对应的路由文件中：
+
+```typescript
+// src/router/routes/modules/your-module.ts
+export default {
+  path: '/your-page',
+  name: 'YourPage',
+  component: () => import('@/views/your-page/index.vue'),
+  meta: {
+    title: '页面标题',
+    ignoreAuth: true, // 忽略权限验证
+    ignoreKeepAlive: false,
+  },
+};
+```
+
+## 2. 修改路由守卫
+
+在 `src/router/guard/permissionGuard.ts` 中添加白名单或跳过验证：
+
+```typescript
+// 定义白名单路由
+const whitePathList: string[] = ['/your-page', '/login'];
+
+export function createPermissionGuard(router: Router) {
+  router.beforeEach(async (to, from, next) => {
+    // 白名单直接放行
+    if (whitePathList.includes(to.path)) {
+      next();
+      return;
+    }
+    
+    // 或者检查路由 meta 中的 ignoreAuth
+    if (to.meta?.ignoreAuth) {
+      next();
+      return;
+    }
+    
+    // 模拟登录状态
+    const userStore = useUserStore();
+    if (!userStore.getToken) {
+      userStore.setToken('your-fixed-token');
+    }
+    
+    next();
+  });
+}
+```
+
+## 3. 在页面中调用接口
+
+在您要联调的页面组件中：
+
+```typescript
+// src/views/your-page/index.vue
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { defHttp } from '@/utils/http/axios';
+
+// 定义接口
+const getDataApi = () => {
+  return defHttp.get({
+    url: '/your-api-endpoint',
+    params: { /* 参数 */ }
+  });
+};
+
+// 页面加载时调用
+onMounted(async () => {
+  try {
+    const result = await getDataApi();
+    console.log('接口返回数据：', result);
+  } catch (error) {
+    console.error('接口调用失败：', error);
+  }
+});
+</script>
+```
+
+## 4. 配置接口请求
+
+如果需要为特定页面配置特殊的请求参数：
+
+```typescript
+// 创建专用的 API 配置
+import { defHttp } from '@/utils/http/axios';
+
+// 带特定配置的请求
+export const pageApi = {
+  getData: (params: any) => {
+    return defHttp.get(
+      {
+        url: '/api/your-endpoint',
+        params,
+      },
+      {
+        // 特定配置
+        withToken: true, // 是否携带 token
+        errorMessageMode: 'message', // 错误提示模式
+        isTransformResponse: true, // 是否处理响应数据
+      }
+    );
+  },
+};
+```
+
+## 5. 处理跨域和代理
+
+在 `vite.config.ts` 中配置代理：
+
+```typescript
+server: {
+  proxy: {
+    '/api': {
+      target: 'http://backend-server.com',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, ''),
+      // 如果后端需要特定 headers
+      configure: (proxy, options) => {
+        proxy.on('proxyReq', (proxyReq, req, res) => {
+          proxyReq.setHeader('X-Special-Header', 'value');
+        });
+      }
+    }
+  }
+}
+```
+
+## 6. 调试技巧
+
+1. **使用浏览器开发者工具**：
+   - Network 面板查看请求详情
+   - Console 打印接口返回数据
+
+2. **添加请求/响应拦截器日志**：
+```typescript
+// src/utils/http/axios/index.ts
+// 请求拦截器
+requestInterceptors: [
+  (config) => {
+    console.log('请求配置：', config);
+    return config;
+  }
+],
+// 响应拦截器
+responseInterceptors: [
+  (response) => {
+    console.log('响应数据：', response);
+    return response;
+  }
+]
+```
+
+3. **错误处理**：
+```typescript
+try {
+  const data = await api.getData();
+} catch (error: any) {
+  console.error('错误详情：', {
+    message: error.message,
+    response: error.response,
+    config: error.config
+  });
+}
+```
+
+## 7. 注意事项
+
+1. **URL 访问格式**：直接访问 `http://localhost:3000/your-page`
+
+2. **接口响应格式**：确认后端返回格式是否符合前端预期：
+```typescript
+// vben 默认期望的格式
+{
+  code: 0,
+  result: data,
+  message: 'success',
+  type: 'success'
+}
+```
+
+3. **Token 有效性**：确保写死的 token 在后端是有效的
+
+4. **环境变量**：不同环境使用不同的 API 地址配置
+
+5. **缓存问题**：清除浏览器缓存或使用无痕模式测试
+
+这样配置后，您就可以直接通过 URL 访问页面并进行接口联调了。
