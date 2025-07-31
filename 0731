@@ -1,0 +1,444 @@
+我来详细说明 vben admin 从登录到跳转默认页面的完整流程：
+
+## 1. 登录流程总览
+
+```mermaid
+graph TD
+    A[用户访问登录页] --> B[填写账号密码]
+    B --> C[点击登录按钮]
+    C --> D[调用登录接口]
+    D --> E[获取并存储Token]
+    E --> F[触发路由跳转]
+    F --> G[路由守卫拦截]
+    G --> H[获取用户信息]
+    H --> I[构建动态路由]
+    I --> J[跳转到默认页面]
+```
+
+## 2. 详细代码流程
+
+### 步骤1: 登录页面 (`src/views/sys/login/LoginForm.vue`)
+
+```typescript
+// 登录表单组件
+async function handleLogin() {
+  try {
+    const data = await validForm();
+    if (!data) return;
+    
+    loading.value = true;
+    const userStore = useUserStore();
+    
+    // 调用 store 中的登录方法
+    const userInfo = await userStore.login({
+      password: data.password,
+      username: data.account,
+      mode: 'none', // 错误提示模式
+    });
+    
+    if (userInfo) {
+      notification.success({
+        message: t('sys.login.loginSuccessTitle'),
+        description: `${t('sys.login.loginSuccessDesc')}: ${userInfo.realName || userInfo.username}`,
+        duration: 3,
+      });
+    }
+  } catch (error) {
+    createErrorModal({
+      title: t('sys.api.errorTip'),
+      content: (error as unknown as Error).message || t('sys.api.networkExceptionMsg'),
+      getContainer: () => document.body.querySelector(`.${prefixCls}`) || document.body,
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+```
+
+### 步骤2: UserStore 登录方法 (`src/store/modules/user.ts`)
+
+```typescript
+// store 中的登录逻辑
+async login(params: LoginParams & {
+  goHome?: boolean;
+  mode?: ErrorMessageMode;
+}): Promise<GetUserInfoModel | null> {
+  try {
+    const { goHome = true, mode, ...loginParams } = params;
+    
+    // 1. 调用登录接口
+    const data = await loginApi(loginParams, mode);
+    const { token } = data;
+    
+    // 2. 保存 token
+    this.setToken(token);
+    
+    // 3. 登录后处理
+    return this.afterLoginAction(goHome);
+  } catch (error) {
+    return Promise.reject(error);
+  }
+}
+
+// 登录后的处理
+async afterLoginAction(goHome?: boolean): Promise<GetUserInfoModel | null> {
+  if (!this.getToken) return null;
+  
+  // 1. 获取用户信息
+  const userInfo = await this.getUserInfoAction();
+  
+  const sessionTimeout = this.sessionTimeout;
+  if (sessionTimeout) {
+    this.setSessionTimeout(false);
+  } else {
+    const permissionStore = usePermissionStore();
+    
+    // 2. 构建动态路由
+    if (!permissionStore.isDynamicAddedRoute) {
+      const routes = await permissionStore.buildRoutesAction();
+      routes.forEach((route) => {
+        router.addRoute(route as unknown as RouteRecordRaw);
+      });
+      router.addRoute(PAGE_NOT_FOUND_ROUTE as unknown as RouteRecordRaw);
+      permissionStore.setDynamicAddedRoute(true);
+    }
+    
+    // 3. 跳转到首页或重定向页面
+    goHome && (await router.replace(userInfo?.homePath || PageEnum.BASE_HOME));
+  }
+  return userInfo;
+}
+```
+
+### 步骤3: 登录接口调用 (`src/api/sys/user.ts`)
+
+```typescript
+enum Api {
+  Login = '/login',
+  Logout = '/logout',
+  GetUserInfo = '/getUserInfo',
+  GetPermCode = '/getPermCode',
+}
+
+// 登录接口
+export function loginApi(params: LoginParams, mode: ErrorMessageMode = 'modal') {
+  return defHttp.post<LoginResultModel>(
+    {
+      url: Api.Login,
+      params,
+    },
+    {
+      errorMessageMode: mode,
+    },
+  );
+}
+
+// 获取用户信息
+export function getUserInfo() {
+  return defHttp.get<GetUserInfoModel>({ url: Api.GetUserInfo }, { errorMessageMode: 'none' });
+}
+```
+
+### 步骤4: Token 管理 (`src/utils/auth/index.ts`)
+
+```typescript
+import { Persistent, BasicKeys } from '@/utils/cache/persistent';
+import { CacheTypeEnum } from '@/enums/cacheEnum';
+import projectSetting from '@/settings/projectSetting';
+import { TOKEN_KEY } from '@/enums/cacheEnum';
+
+const { permissionCacheType } = projectSetting;
+const isLocal = permissionCacheType === CacheTypeEnum.LOCAL;
+
+// 获取 token
+export function getToken() {
+  return getAuthCache(TOKEN_KEY);
+}
+
+// 设置 token
+export function setToken(token: string | undefined) {
+  return setAuthCache(TOKEN_KEY, token);
+}
+
+// 获取缓存
+export function getAuthCache<T>(key: BasicKeys) {
+  const fn = isLocal ? Persistent.getLocal : Persistent.getSession;
+  return fn(key) as T;
+}
+
+// 设置缓存
+export function setAuthCache(key: BasicKeys, value) {
+  const fn = isLocal ? Persistent.setLocal : Persistent.setSession;
+  return fn(key, value, true);
+}
+```
+
+### 步骤5: 路由守卫处理 (`src/router/guard/index.ts`)
+
+```typescript
+// 路由守卫配置入口
+export function setupRouterGuard(router: Router) {
+  createPageGuard(router);
+  createPageLoadingGuard(router);
+  createHttpGuard(router);
+  createScrollGuard(router);
+  createMessageGuard(router);
+  createProgressGuard(router);
+  createPermissionGuard(router); // 权限守卫
+  createParamMenuGuard(router);
+  createStateGuard(router);
+}
+```
+
+### 步骤6: 权限守卫详细逻辑 (`src/router/guard/permissionGuard.ts`)
+
+```typescript
+export function createPermissionGuard(router: Router) {
+  const userStore = useUserStoreWithOut();
+  const permissionStore = usePermissionStoreWithOut();
+  
+  router.beforeEach(async (to, from, next) => {
+    // 1. 处理根路径跳转
+    if (
+      from.path === ROOT_PATH &&
+      to.path === PageEnum.BASE_HOME &&
+      userStore.getUserInfo.homePath &&
+      userStore.getUserInfo.homePath !== PageEnum.BASE_HOME
+    ) {
+      next(userStore.getUserInfo.homePath);
+      return;
+    }
+
+    const token = userStore.getToken;
+
+    // 2. 白名单路由直接放行
+    if (whitePathList.includes(to.path as PageEnum)) {
+      if (to.path === LOGIN_PATH && token) {
+        const isSessionTimeout = userStore.getSessionTimeout;
+        try {
+          await userStore.afterLoginAction();
+          if (!isSessionTimeout) {
+            next((to.query?.redirect as string) || '/');
+            return;
+          }
+        } catch {}
+      }
+      next();
+      return;
+    }
+
+    // 3. 没有 token 时的处理
+    if (!token) {
+      if (to.meta.ignoreAuth) {
+        next();
+        return;
+      }
+
+      const redirectData: { path: string; replace: boolean; query?: Recordable<string> } = {
+        path: LOGIN_PATH,
+        replace: true,
+      };
+      if (to.path) {
+        redirectData.query = {
+          ...redirectData.query,
+          redirect: to.path,
+        };
+      }
+      next(redirectData);
+      return;
+    }
+
+    // 4. 处理登录后跳转到 404 页面
+    if (
+      from.path === LOGIN_PATH &&
+      to.name === PAGE_NOT_FOUND_ROUTE.name &&
+      to.fullPath !== (userStore.getUserInfo.homePath || PageEnum.BASE_HOME)
+    ) {
+      next(userStore.getUserInfo.homePath || PageEnum.BASE_HOME);
+      return;
+    }
+
+    // 5. 获取用户信息（仅在第一次）
+    if (userStore.getLastUpdateTime === 0) {
+      try {
+        await userStore.getUserInfoAction();
+      } catch (err) {
+        next();
+        return;
+      }
+    }
+
+    // 6. 动态路由已添加，直接放行
+    if (permissionStore.getIsDynamicAddedRoute) {
+      next();
+      return;
+    }
+
+    // 7. 构建动态路由
+    const routes = await permissionStore.buildRoutesAction();
+
+    routes.forEach((route) => {
+      router.addRoute(route as unknown as RouteRecordRaw);
+    });
+
+    router.addRoute(PAGE_NOT_FOUND_ROUTE as unknown as RouteRecordRaw);
+
+    permissionStore.setDynamicAddedRoute(true);
+
+    if (to.name === PAGE_NOT_FOUND_ROUTE.name) {
+      next({ path: to.fullPath, replace: true, query: to.query });
+    } else {
+      const redirectPath = (from.query.redirect || to.path) as string;
+      const redirect = decodeURIComponent(redirectPath);
+      const nextData = to.path === redirect ? { ...to, replace: true } : { path: redirect };
+      next(nextData);
+    }
+  });
+}
+```
+
+### 步骤7: 获取用户信息 (`src/store/modules/user.ts`)
+
+```typescript
+async getUserInfoAction(): Promise<UserInfo | null> {
+  if (!this.getToken) return null;
+  
+  // 调用获取用户信息接口
+  const userInfo = await getUserInfo();
+  const { roles = [] } = userInfo;
+  
+  if (isArray(roles)) {
+    const roleList = roles.map((item) => item.value) as RoleEnum[];
+    this.setRoleList(roleList);
+  } else {
+    userInfo.roles = [];
+    this.setRoleList([]);
+  }
+  
+  this.setUserInfo(userInfo);
+  this.setSessionTimeout(false);
+  return userInfo;
+}
+```
+
+### 步骤8: 构建动态路由 (`src/store/modules/permission.ts`)
+
+```typescript
+async buildRoutesAction(): Promise<AppRouteRecordRaw[]> {
+  const { t } = useI18n();
+  const userStore = useUserStore();
+  const appStore = useAppStoreWithOut();
+
+  let routes: AppRouteRecordRaw[] = [];
+  const roleList = toRaw(userStore.getRoleList) || [];
+  const { permissionMode = projectSetting.permissionMode } = appStore.getProjectConfig;
+
+  // 路由过滤器
+  const routeFilter = (route: AppRouteRecordRaw) => {
+    const { meta } = route;
+    const { roles } = meta || {};
+    if (!roles) return true;
+    return roleList.some((role) => roles.includes(role));
+  };
+
+  const routeRemoveIgnoreFilter = (route: AppRouteRecordRaw) => {
+    const { meta } = route;
+    const { ignoreRoute } = meta || {};
+    return !ignoreRoute;
+  };
+
+  switch (permissionMode) {
+    // 前端角色权限模式
+    case PermissionModeEnum.ROLE:
+      routes = filter(asyncRoutes, routeFilter);
+      routes = routes.filter(routeFilter);
+      routes = flatMultiLevelRoutes(routes);
+      break;
+
+    // 路由映射模式
+    case PermissionModeEnum.ROUTE_MAPPING:
+      routes = filter(asyncRoutes, routeFilter);
+      routes = routes.filter(routeFilter);
+      const menuList = transformRouteToMenu(routes, true);
+      routes = filter(routes, routeRemoveIgnoreFilter);
+      routes = routes.filter(routeRemoveIgnoreFilter);
+      menuList.sort((a, b) => {
+        return (a.meta?.orderNo || 0) - (b.meta?.orderNo || 0);
+      });
+
+      this.setFrontMenuList(menuList);
+      routes = flatMultiLevelRoutes(routes);
+      break;
+
+    // 后端菜单模式
+    case PermissionModeEnum.BACK:
+      const { createMessage } = useMessage();
+
+      createMessage.loading({
+        content: t('sys.app.menuLoading'),
+        duration: 1,
+      });
+
+      let paramId = '';
+      if (userStore.getUserInfo.homePath) {
+        paramId = userStore.getUserInfo.homePath;
+      }
+
+      const { backMenuList } = await getMenuList(paramId);
+      this.setBackMenuList(backMenuList);
+      routes = transformObjToRoute(backMenuList);
+      
+      routes.push(ERROR_LOG_ROUTE);
+      routes = flatMultiLevelRoutes(routes);
+      break;
+  }
+  return routes;
+}
+```
+
+### 步骤9: 页面跳转
+
+最终通过 router.replace 跳转到用户的默认首页：
+
+```typescript
+// 在 afterLoginAction 中
+goHome && (await router.replace(userInfo?.homePath || PageEnum.BASE_HOME));
+
+// PageEnum.BASE_HOME 默认值
+export enum PageEnum {
+  // 基础首页路径
+  BASE_HOME = '/dashboard',
+}
+```
+
+## 3. 流程时序图
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant L as LoginForm
+    participant S as UserStore
+    participant A as API
+    participant R as Router
+    participant G as Guard
+    participant P as PermissionStore
+
+    U->>L: 输入账号密码
+    L->>S: 调用 login()
+    S->>A: 调用登录接口
+    A-->>S: 返回 token
+    S->>S: setToken() 保存
+    S->>S: afterLoginAction()
+    S->>A: getUserInfo()
+    A-->>S: 返回用户信息
+    S->>P: buildRoutesAction()
+    P->>P: 构建动态路由
+    P-->>S: 返回路由列表
+    S->>R: router.replace(homePath)
+    R->>G: 触发路由守卫
+    G->>G: 权限验证
+    G-->>R: next() 放行
+    R-->>U: 跳转到首页
+```
+
+这就是 vben admin 从登录到跳转默认页面的完整流程。整个过程涉及了状态管理、路由守卫、动态路由、权限控制等多个核心模块的协作。
