@@ -1,0 +1,622 @@
+我来详细介绍 Vue 3 响应式 API 配合 TypeScript 的使用方法。
+
+## 基础类型定义
+
+### 1. ref 的类型定义
+
+```typescript
+import { ref, Ref } from 'vue'
+
+// 自动推断类型
+const count = ref(0) // 类型: Ref<number>
+const message = ref('hello') // 类型: Ref<string>
+
+// 显式指定类型
+const name = ref<string>('张三')
+const age = ref<number | undefined>(undefined)
+
+// 复杂类型
+interface User {
+  id: number
+  name: string
+  email: string
+}
+
+const user = ref<User | null>(null)
+
+// 使用 Ref 类型注解
+const userRef: Ref<User | null> = ref(null)
+
+// 函数参数中使用
+function updateUser(userRef: Ref<User>) {
+  userRef.value.name = '新名字'
+}
+```
+
+### 2. reactive 的类型定义
+
+```typescript
+import { reactive } from 'vue'
+
+// 使用接口定义
+interface State {
+  user: User
+  todos: Todo[]
+  loading: boolean
+}
+
+interface Todo {
+  id: number
+  text: string
+  completed: boolean
+}
+
+// 自动推断
+const state = reactive({
+  user: {
+    id: 1,
+    name: '张三',
+    email: 'zhangsan@example.com'
+  },
+  todos: [] as Todo[],
+  loading: false
+})
+
+// 显式指定类型
+const typedState = reactive<State>({
+  user: { id: 1, name: '张三', email: 'zhangsan@example.com' },
+  todos: [],
+  loading: false
+})
+
+// 使用类型断言
+const assertedState = reactive({
+  todos: []
+} as State)
+```
+
+### 3. computed 的类型定义
+
+```typescript
+import { computed, ref, ComputedRef } from 'vue'
+
+const firstName = ref('张')
+const lastName = ref('三')
+
+// 自动推断返回类型
+const fullName = computed(() => firstName.value + lastName.value) // ComputedRef<string>
+
+// 显式指定类型
+const userInfo = computed<string>(() => {
+  return `${firstName.value} ${lastName.value}`
+})
+
+// 可写计算属性
+const fullNameWritable = computed<string>({
+  get: () => firstName.value + lastName.value,
+  set: (newValue) => {
+    const names = newValue.split(' ')
+    firstName.value = names[0] || ''
+    lastName.value = names[1] || ''
+  }
+})
+
+// 在函数中使用 ComputedRef 类型
+function useFullName(first: Ref<string>, last: Ref<string>): ComputedRef<string> {
+  return computed(() => `${first.value} ${last.value}`)
+}
+```
+
+## 组合式函数的类型定义
+
+### 1. 基础组合式函数
+
+```typescript
+import { ref, computed, Ref, ComputedRef } from 'vue'
+
+// 定义返回类型接口
+interface UseCounterReturn {
+  count: Ref<number>
+  doubleCount: ComputedRef<number>
+  increment: () => void
+  decrement: () => void
+  reset: () => void
+}
+
+// 组合式函数
+export function useCounter(initialValue = 0): UseCounterReturn {
+  const count = ref(initialValue)
+  
+  const doubleCount = computed(() => count.value * 2)
+  
+  const increment = () => {
+    count.value++
+  }
+  
+  const decrement = () => {
+    count.value--
+  }
+  
+  const reset = () => {
+    count.value = initialValue
+  }
+  
+  return {
+    count,
+    doubleCount,
+    increment,
+    decrement,
+    reset
+  }
+}
+```
+
+### 2. 泛型组合式函数
+
+```typescript
+import { ref, Ref } from 'vue'
+
+// 通用的异步数据获取
+interface UseAsyncDataReturn<T> {
+  data: Ref<T | null>
+  error: Ref<Error | null>
+  loading: Ref<boolean>
+  execute: () => Promise<void>
+}
+
+export function useAsyncData<T>(
+  fetchFn: () => Promise<T>
+): UseAsyncDataReturn<T> {
+  const data = ref<T | null>(null)
+  const error = ref<Error | null>(null)
+  const loading = ref(false)
+  
+  const execute = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      data.value = await fetchFn()
+    } catch (e) {
+      error.value = e as Error
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  return {
+    data,
+    error,
+    loading,
+    execute
+  }
+}
+
+// 使用示例
+const { data: users, loading, execute } = useAsyncData<User[]>(
+  () => fetch('/api/users').then(res => res.json())
+)
+```
+
+## Props 和 Emit 的类型定义
+
+### 1. 使用 `<script setup>` 和 TypeScript
+
+```vue
+<script setup lang="ts">
+import { computed, ref } from 'vue'
+
+// Props 类型定义
+interface Props {
+  modelValue: string
+  label?: string
+  disabled?: boolean
+  options?: string[]
+}
+
+// 使用 withDefaults 设置默认值
+const props = withDefaults(defineProps<Props>(), {
+  label: '默认标签',
+  disabled: false,
+  options: () => []
+})
+
+// Emit 类型定义
+interface Emits {
+  'update:modelValue': [value: string]
+  'change': [value: string, oldValue: string]
+  'blur': [event: FocusEvent]
+}
+
+const emit = defineEmits<Emits>()
+
+// 或者使用更简洁的语法
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: string): void
+  (e: 'change', value: string, oldValue: string): void
+  (e: 'blur', event: FocusEvent): void
+}>()
+
+// 使用
+const localValue = ref(props.modelValue)
+
+const handleChange = (newValue: string) => {
+  const oldValue = localValue.value
+  localValue.value = newValue
+  emit('update:modelValue', newValue)
+  emit('change', newValue, oldValue)
+}
+</script>
+```
+
+### 2. 复杂的 Props 类型
+
+```typescript
+// 共享类型定义文件 types.ts
+export interface TableColumn {
+  key: string
+  label: string
+  width?: number
+  sortable?: boolean
+  formatter?: (value: any) => string
+}
+
+export interface TableProps<T = any> {
+  data: T[]
+  columns: TableColumn[]
+  loading?: boolean
+  pagination?: {
+    page: number
+    pageSize: number
+    total: number
+  }
+}
+```
+
+```vue
+<script setup lang="ts" generic="T">
+// Vue 3.3+ 支持泛型组件
+import type { TableProps } from './types'
+
+const props = defineProps<TableProps<T>>()
+
+// 现在 props.data 的类型是 T[]
+</script>
+```
+
+## Watch 和 WatchEffect 的类型使用
+
+```typescript
+import { ref, watch, watchEffect, WatchStopHandle } from 'vue'
+
+const count = ref(0)
+const user = ref<User | null>(null)
+
+// watch 单个源
+const stopWatch: WatchStopHandle = watch(count, (newVal, oldVal) => {
+  console.log(`count: ${oldVal} -> ${newVal}`)
+})
+
+// watch 多个源
+watch(
+  [count, user] as const,
+  ([newCount, newUser], [oldCount, oldUser]) => {
+    // TypeScript 能正确推断类型
+    console.log(newCount) // number
+    console.log(newUser) // User | null
+  }
+)
+
+// watch getter 函数
+watch(
+  () => user.value?.name,
+  (newName, oldName) => {
+    // newName 和 oldName 的类型是 string | undefined
+  }
+)
+
+// watchEffect 的类型
+const stopEffect = watchEffect((onCleanup) => {
+  const timer = setTimeout(() => {
+    console.log(count.value)
+  }, 1000)
+  
+  onCleanup(() => {
+    clearTimeout(timer)
+  })
+})
+```
+
+## 实际项目示例
+
+### 1. 用户管理组合式函数
+
+```typescript
+// types/user.ts
+export interface User {
+  id: number
+  username: string
+  email: string
+  role: 'admin' | 'user'
+  createdAt: Date
+}
+
+export interface CreateUserDto {
+  username: string
+  email: string
+  password: string
+  role: 'admin' | 'user'
+}
+
+// composables/useUsers.ts
+import { ref, computed, readonly } from 'vue'
+import type { Ref, ComputedRef, DeepReadonly } from 'vue'
+import type { User, CreateUserDto } from '@/types/user'
+
+interface UseUsersReturn {
+  users: DeepReadonly<Ref<User[]>>
+  loading: DeepReadonly<Ref<boolean>>
+  error: DeepReadonly<Ref<string | null>>
+  currentPage: Ref<number>
+  pageSize: Ref<number>
+  totalUsers: ComputedRef<number>
+  paginatedUsers: ComputedRef<User[]>
+  fetchUsers: () => Promise<void>
+  createUser: (userData: CreateUserDto) => Promise<User>
+  updateUser: (id: number, updates: Partial<User>) => Promise<void>
+  deleteUser: (id: number) => Promise<void>
+}
+
+export function useUsers(): UseUsersReturn {
+  const users = ref<User[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
+  const currentPage = ref(1)
+  const pageSize = ref(10)
+  
+  const totalUsers = computed(() => users.value.length)
+  
+  const paginatedUsers = computed(() => {
+    const start = (currentPage.value - 1) * pageSize.value
+    const end = start + pageSize.value
+    return users.value.slice(start, end)
+  })
+  
+  const fetchUsers = async () => {
+    loading.value = true
+    error.value = null
+    
+    try {
+      const response = await fetch('/api/users')
+      if (!response.ok) {
+        throw new Error('Failed to fetch users')
+      }
+      users.value = await response.json()
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '未知错误'
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  const createUser = async (userData: CreateUserDto): Promise<User> => {
+    const response = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userData)
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to create user')
+    }
+    
+    const newUser = await response.json()
+    users.value.push(newUser)
+    return newUser
+  }
+  
+  const updateUser = async (id: number, updates: Partial<User>) => {
+    const response = await fetch(`/api/users/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates)
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to update user')
+    }
+    
+    const updatedUser = await response.json()
+    const index = users.value.findIndex(u => u.id === id)
+    if (index !== -1) {
+      users.value[index] = updatedUser
+    }
+  }
+  
+  const deleteUser = async (id: number) => {
+    const response = await fetch(`/api/users/${id}`, {
+      method: 'DELETE'
+    })
+    
+    if (!response.ok) {
+      throw new Error('Failed to delete user')
+    }
+    
+    users.value = users.value.filter(u => u.id !== id)
+  }
+  
+  return {
+    users: readonly(users),
+    loading: readonly(loading),
+    error: readonly(error),
+    currentPage,
+    pageSize,
+    totalUsers,
+    paginatedUsers,
+    fetchUsers,
+    createUser,
+    updateUser,
+    deleteUser
+  }
+}
+```
+
+### 2. 表单处理示例
+
+```typescript
+// composables/useForm.ts
+import { ref, computed, reactive } from 'vue'
+import type { Ref, ComputedRef, UnwrapNestedRefs } from 'vue'
+
+type ValidationRule<T> = (value: T) => string | true
+
+interface FormField<T = any> {
+  value: T
+  error: string
+  touched: boolean
+  rules: ValidationRule<T>[]
+}
+
+type FormFields = Record<string, FormField>
+
+interface UseFormReturn<T extends FormFields> {
+  fields: UnwrapNestedRefs<T>
+  isValid: ComputedRef<boolean>
+  errors: ComputedRef<Record<string, string>>
+  validate: () => boolean
+  validateField: (fieldName: keyof T) => boolean
+  reset: () => void
+  setFieldValue: <K extends keyof T>(field: K, value: T[K]['value']) => void
+}
+
+export function useForm<T extends FormFields>(
+  initialFields: T
+): UseFormReturn<T> {
+  const fields = reactive(initialFields)
+  
+  const errors = computed(() => {
+    const errorMap: Record<string, string> = {}
+    for (const [key, field] of Object.entries(fields)) {
+      if (field.error) {
+        errorMap[key] = field.error
+      }
+    }
+    return errorMap
+  })
+  
+  const isValid = computed(() => {
+    return Object.values(errors.value).length === 0
+  })
+  
+  const validateField = <K extends keyof T>(fieldName: K): boolean => {
+    const field = fields[fieldName]
+    field.touched = true
+    
+    for (const rule of field.rules) {
+      const result = rule(field.value)
+      if (result !== true) {
+        field.error = result
+        return false
+      }
+    }
+    
+    field.error = ''
+    return true
+  }
+  
+  const validate = (): boolean => {
+    let valid = true
+    for (const fieldName in fields) {
+      if (!validateField(fieldName)) {
+        valid = false
+      }
+    }
+    return valid
+  }
+  
+  const reset = () => {
+    for (const field of Object.values(fields)) {
+      field.value = initialFields[field as keyof T].value
+      field.error = ''
+      field.touched = false
+    }
+  }
+  
+  const setFieldValue = <K extends keyof T>(
+    fieldName: K,
+    value: T[K]['value']
+  ) => {
+    fields[fieldName].value = value
+    if (fields[fieldName].touched) {
+      validateField(fieldName)
+    }
+  }
+  
+  return {
+    fields,
+    isValid,
+    errors,
+    validate,
+    validateField,
+    reset,
+    setFieldValue
+  }
+}
+
+// 使用示例
+const loginForm = useForm({
+  username: {
+    value: '',
+    error: '',
+    touched: false,
+    rules: [
+      (v) => !!v || '用户名必填',
+      (v) => v.length >= 3 || '用户名至少3个字符'
+    ]
+  },
+  password: {
+    value: '',
+    error: '',
+    touched: false,
+    rules: [
+      (v) => !!v || '密码必填',
+      (v) => v.length >= 6 || '密码至少6个字符'
+    ]
+  }
+})
+```
+
+## 最佳实践和注意事项
+
+1. **使用 `.value` 的类型安全**
+   ```typescript
+   const count = ref<number | null>(null)
+   
+   // TypeScript 会提示可能为 null
+   // count.value.toFixed(2) // Error!
+   
+   // 使用可选链或类型守卫
+   count.value?.toFixed(2)
+   
+   if (count.value !== null) {
+     count.value.toFixed(2) // OK
+   }
+   ```
+
+2. **避免类型断言滥用**
+   ```typescript
+   // ❌ 避免
+   const user = ref({} as User)
+   
+   // ✅ 推荐
+   const user = ref<User | null>(null)
+   ```
+
+3. **导出类型**
+   ```typescript
+   // ✅ 同时导出类型和实现
+   export type { UseUsersReturn }
+   export { useUsers }
+   ```
+
+这些是 Vue 3 响应式 API 配合 TypeScript 的核心用法。通过合理的类型定义，可以获得更好的开发体验和类型安全性。
