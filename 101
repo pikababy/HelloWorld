@@ -1,0 +1,294 @@
+Vue 3 的响应式 API 确实有一定的学习曲线，我来详细介绍一下各个 API 的使用方法和注意事项。
+
+## 响应式基础 API
+
+### 1. ref() - 基础响应式引用
+
+`ref()` 用于创建单个响应式值，适合基本类型和对象。
+
+```javascript
+import { ref } from 'vue'
+
+// 基本类型
+const count = ref(0)
+const message = ref('Hello')
+
+// 访问和修改需要通过 .value
+console.log(count.value) // 0
+count.value++ // 1
+
+// 对象类型
+const user = ref({
+  name: '张三',
+  age: 25
+})
+user.value.name = '李四' // 修改对象属性
+```
+
+**在模板中使用时会自动解包：**
+```vue
+<template>
+  <div>{{ count }}</div> <!-- 不需要 .value -->
+  <button @click="count++">增加</button> <!-- 自动解包 -->
+</template>
+```
+
+### 2. reactive() - 对象响应式
+
+`reactive()` 用于创建响应式对象，更适合复杂对象结构。
+
+```javascript
+import { reactive } from 'vue'
+
+const state = reactive({
+  user: {
+    name: '张三',
+    age: 25
+  },
+  todos: []
+})
+
+// 直接访问属性，不需要 .value
+state.user.name = '李四'
+state.todos.push({ text: '学习 Vue 3' })
+```
+
+**注意事项：**
+- reactive 只能用于对象类型（对象、数组、Map、Set等）
+- 不能用于基本类型
+- 解构会失去响应性
+
+```javascript
+// ❌ 错误示例 - 失去响应性
+const { user } = state // user 不再是响应式的
+
+// ✅ 正确做法 - 使用 toRefs
+import { toRefs } from 'vue'
+const { user } = toRefs(state) // user 是 ref，保持响应性
+```
+
+### 3. computed() - 计算属性
+
+用于创建基于其他响应式状态的派生值。
+
+```javascript
+import { ref, computed } from 'vue'
+
+const firstName = ref('张')
+const lastName = ref('三')
+
+// 只读计算属性
+const fullName = computed(() => {
+  return firstName.value + lastName.value
+})
+
+// 可写计算属性
+const fullNameWritable = computed({
+  get() {
+    return firstName.value + lastName.value
+  },
+  set(newValue) {
+    [firstName.value, lastName.value] = newValue.split(' ')
+  }
+})
+```
+
+### 4. watch() 和 watchEffect()
+
+监听响应式数据的变化。
+
+```javascript
+import { ref, watch, watchEffect } from 'vue'
+
+const count = ref(0)
+const user = reactive({ name: '张三' })
+
+// watch - 显式指定依赖
+watch(count, (newVal, oldVal) => {
+  console.log(`count 从 ${oldVal} 变为 ${newVal}`)
+})
+
+// 监听多个源
+watch([count, () => user.name], ([newCount, newName], [oldCount, oldName]) => {
+  console.log('变化了')
+})
+
+// 深度监听对象
+watch(user, (newUser) => {
+  console.log('user 对象变化了')
+}, { deep: true })
+
+// watchEffect - 自动收集依赖
+watchEffect(() => {
+  console.log(`count 是 ${count.value}`)
+  console.log(`用户名是 ${user.name}`)
+})
+```
+
+## 进阶响应式 API
+
+### 1. shallowRef() 和 shallowReactive()
+
+只创建浅层响应式，适合性能优化。
+
+```javascript
+import { shallowRef, shallowReactive } from 'vue'
+
+// shallowRef - 只有 .value 是响应式的
+const state = shallowRef({ count: 0 })
+state.value = { count: 1 } // ✅ 触发更新
+state.value.count = 2 // ❌ 不会触发更新
+
+// shallowReactive - 只有第一层是响应式的
+const shallowState = shallowReactive({
+  nested: {
+    count: 0
+  }
+})
+shallowState.nested = { count: 1 } // ✅ 触发更新
+shallowState.nested.count = 2 // ❌ 不会触发更新
+```
+
+### 2. readonly() - 只读代理
+
+创建只读的响应式对象。
+
+```javascript
+import { reactive, readonly } from 'vue'
+
+const original = reactive({ count: 0 })
+const copy = readonly(original)
+
+// copy.count++ // ❌ 会警告，不能修改
+original.count++ // ✅ 可以修改原对象，copy 也会更新
+```
+
+### 3. toRef() 和 toRefs()
+
+将响应式对象的属性转换为 ref。
+
+```javascript
+import { reactive, toRef, toRefs } from 'vue'
+
+const state = reactive({
+  name: '张三',
+  age: 25
+})
+
+// toRef - 为单个属性创建 ref
+const nameRef = toRef(state, 'name')
+nameRef.value = '李四' // 会同步更新 state.name
+
+// toRefs - 将整个对象转换
+const refs = toRefs(state)
+// 现在可以解构而不失去响应性
+const { name, age } = refs
+```
+
+## 实际应用示例
+
+### 组合式 API 中的典型用法
+
+```javascript
+// useUser.js - 自定义组合式函数
+import { ref, computed, watch } from 'vue'
+
+export function useUser() {
+  const user = ref(null)
+  const loading = ref(false)
+  const error = ref(null)
+
+  const isLoggedIn = computed(() => !!user.value)
+  
+  const fetchUser = async (id) => {
+    loading.value = true
+    error.value = null
+    try {
+      const response = await fetch(`/api/users/${id}`)
+      user.value = await response.json()
+    } catch (e) {
+      error.value = e.message
+    } finally {
+      loading.value = false
+    }
+  }
+
+  // 监听用户变化
+  watch(user, (newUser) => {
+    if (newUser) {
+      console.log('用户已登录:', newUser.name)
+    }
+  })
+
+  return {
+    user: readonly(user), // 返回只读版本
+    loading: readonly(loading),
+    error: readonly(error),
+    isLoggedIn,
+    fetchUser
+  }
+}
+```
+
+### 在组件中使用
+
+```vue
+<template>
+  <div>
+    <div v-if="loading">加载中...</div>
+    <div v-else-if="error">错误: {{ error }}</div>
+    <div v-else-if="user">
+      <h2>{{ user.name }}</h2>
+      <p>状态: {{ isLoggedIn ? '已登录' : '未登录' }}</p>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { onMounted } from 'vue'
+import { useUser } from './useUser'
+
+const { user, loading, error, isLoggedIn, fetchUser } = useUser()
+
+onMounted(() => {
+  fetchUser(1)
+})
+</script>
+```
+
+## 常见陷阱和最佳实践
+
+1. **ref vs reactive 的选择**
+   - 基本类型用 ref
+   - 对象类型两者都可以，但 reactive 更自然
+   - 需要整体替换的对象用 ref
+
+2. **响应性丢失问题**
+   ```javascript
+   // ❌ 错误
+   let { count } = reactive({ count: 0 })
+   count++ // 不会触发更新
+
+   // ✅ 正确
+   const state = reactive({ count: 0 })
+   state.count++ // 会触发更新
+   ```
+
+3. **避免直接修改 props**
+   ```javascript
+   // ❌ 错误
+   props.value = 'new value'
+
+   // ✅ 正确 - 使用本地响应式副本
+   const localValue = ref(props.value)
+   watch(() => props.value, (newVal) => {
+     localValue.value = newVal
+   })
+   ```
+
+4. **性能优化**
+   - 大型列表使用 shallowRef
+   - 静态数据使用 markRaw
+   - 及时清理 watch 和 watchEffect
+
+这些是 Vue 3 响应式 API 的核心内容。建议你从简单的 ref 和 reactive 开始，逐步掌握其他 API。有什么具体的使用场景或问题，我可以提供更针对性的帮助。
