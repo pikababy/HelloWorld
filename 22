@@ -1,0 +1,22 @@
+<template>
+  <div>
+    <a-button 
+      type="primary" 
+      :loading="loading" 
+      @click="handleDownload"
+    >
+      <template #icon>
+        <DownloadOutlined />
+      </template>
+      导出Excel
+    </a-button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { DownloadOutlined } from '@ant-design/icons-vue';
+import { useExcelDownload } from './useExcelDownload';
+
+// 使用 Excel 下载功能
+const { loading, handleDownload } = useExcelDownload();
+</script>
