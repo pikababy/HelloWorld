@@ -1,0 +1,144 @@
+import { ref } from 'vue';
+import { useMessage } from '/@/hooks/web/useMessage';
+import { downloadByData } from '/@/utils/file/download';
+import * as XLSX from 'xlsx';
+
+// API 接口定义
+import { defHttp } from '/@/utils/http/axios';
+
+// 定义接口返回的数据类型
+interface HeaderItem {
+  id: number;
+  flowType: string;
+  flowHandleType: string;
+  tableName: string;
+  columnName: string;
+  columnComment?: string;
+  createTime: string;
+  creator: string;
+  creatorId: string;
+  dataType: string;
+  refColumnName?: string;
+}
+
+interface ContentItem {
+  id: string;
+  name: string;
+  code: string;
+  domain: string;
+  type: string;
+  devOwner?: string;
+  devOwnerId?: string;
+  opOwner?: string;
+  opOwnerId?: string;
+  owner?: string;
+  ownerId?: string;
+  innerIp?: string;
+  internet?: string;
+  internalIp?: string;
+  lastCheckTime?: string;
+  mgUnit?: string;
+  opUnit?: string;
+  sysConstUnit?: string;
+  sysOpUnit?: string;
+  remark?: string;
+  sfProtection?: string;
+  whatherUpload?: string;
+}
+
+// API 请求方法
+const getExcelHeaders = () => {
+  return defHttp.get<HeaderItem[]>({
+    url: '/api/excel/headers',
+  });
+};
+
+const getExcelContent = () => {
+  return defHttp.get<ContentItem[]>({
+    url: '/api/excel/content',
+  });
+};
+
+// Excel 下载主函数
+export async function downloadExcel() {
+  const { createMessage } = useMessage();
+  
+  try {
+    createMessage.loading('正在准备数据，请稍候...');
+    
+    // 并行请求两个接口
+    const [headersData, contentData] = await Promise.all([
+      getExcelHeaders(),
+      getExcelContent()
+    ]);
+    
+    // 根据第一个接口的数据构建表头映射
+    const headerMap = new Map<string, string>();
+    headersData.forEach(item => {
+      // 使用 columnName 作为 key，columnComment 或 columnName 作为显示名称
+      headerMap.set(item.columnName, item.columnComment || item.columnName);
+    });
+    
+    // 构建 Excel 表头行
+    const headers = Array.from(headerMap.values());
+    const headerKeys = Array.from(headerMap.keys());
+    
+    // 转换内容数据为二维数组
+    const rows = contentData.map(item => {
+      return headerKeys.map(key => {
+        // 根据 key 获取对应的值
+        const value = item[key as keyof ContentItem];
+        // 处理 null 或 undefined 值
+        return value !== null && value !== undefined ? String(value) : '';
+      });
+    });
+    
+    // 创建工作簿
+    const wb = XLSX.utils.book_new();
+    
+    // 将表头和数据合并
+    const wsData = [headers, ...rows];
+    
+    // 创建工作表
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    
+    // 设置列宽（可选）
+    const colWidths = headers.map((header) => ({
+      wch: Math.max(header.length + 2, 15), // 最小宽度15个字符
+    }));
+    ws['!cols'] = colWidths;
+    
+    // 添加工作表到工作簿
+    XLSX.utils.book_append_sheet(wb, ws, '数据导出');
+    
+    // 生成 Excel 文件
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    
+    // 下载文件
+    downloadByData(wbout, `数据导出_${new Date().getTime()}.xlsx`);
+    
+    createMessage.success('导出成功！');
+  } catch (error) {
+    console.error('导出失败:', error);
+    createMessage.error('导出失败，请重试！');
+  }
+}
+
+// 在 Vue 组件中使用
+export function useExcelDownload() {
+  const loading = ref(false);
+  
+  const handleDownload = async () => {
+    loading.value = true;
+    try {
+      await downloadExcel();
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  return {
+    loading,
+    handleDownload,
+  };
+}
