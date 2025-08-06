@@ -1,0 +1,251 @@
+我看到您正在使用 vben admin 开发 Vue3 项目，需要实现点击表格中的查看按钮跳转到详情页并发送带动态参数的接口请求。以下是完整的实现方案：
+
+## 1. 表格列配置（查看按钮）
+
+```typescript
+// 在表格的列配置中添加操作列
+import { BasicColumn } from '/@/components/Table';
+import { h } from 'vue';
+import { Icon } from '/@/components/Icon';
+import { ActionItem } from '/@/components/Table';
+
+export const columns: BasicColumn[] = [
+  // ... 其他列配置
+  {
+    title: '操作',
+    dataIndex: 'action',
+    width: 150,
+    customRender: ({ record }) => {
+      return h('div', [
+        h(
+          'a',
+          {
+            onClick: () => handleView(record),
+            style: { marginRight: '8px' }
+          },
+          [
+            h(Icon, { icon: 'ant-design:eye-outlined' }),
+            ' 查看'
+          ]
+        ),
+        // 其他操作按钮...
+      ]);
+    },
+  },
+];
+```
+
+## 2. 跳转详情页的处理函数
+
+```typescript
+// 在列表页面组件中
+import { useRouter } from 'vue-router';
+import { useGo } from '/@/hooks/web/usePage';
+
+const router = useRouter();
+const go = useGo();
+
+// 方式一：使用 router.push
+const handleView = (record: any) => {
+  // 跳转到详情页，传递参数
+  router.push({
+    name: 'DetailPage', // 路由名称
+    params: {
+      id: record.id // 路由参数
+    },
+    query: {
+      // 可以传递更多查询参数
+      type: record.type,
+      cacheBuster: record.cacheBuster // 从你的截图看到的参数
+    }
+  });
+};
+
+// 方式二：使用 vben 的 useGo
+const handleView = (record: any) => {
+  go({
+    name: 'DetailPage',
+    params: { id: record.id },
+    query: { cacheBuster: record.cacheBuster }
+  });
+};
+```
+
+## 3. 路由配置
+
+```typescript
+// router/routes/modules/your-module.ts
+import type { AppRouteModule } from '/@/router/types';
+
+const routes: AppRouteModule = {
+  path: '/your-module',
+  name: 'YourModule',
+  component: LAYOUT,
+  children: [
+    {
+      path: 'list',
+      name: 'ListPage',
+      component: () => import('/@/views/your-module/list/index.vue'),
+      meta: {
+        title: '列表页',
+      },
+    },
+    {
+      path: 'detail/:id', // 动态路由参数
+      name: 'DetailPage',
+      component: () => import('/@/views/your-module/detail/index.vue'),
+      meta: {
+        title: '详情页',
+        hideMenu: true, // 在菜单中隐藏
+        currentActiveMenu: '/your-module/list', // 保持列表页菜单高亮
+      },
+    },
+  ],
+};
+```
+
+## 4. 详情页接收参数并发送请求
+
+```vue
+<!-- detail/index.vue -->
+<template>
+  <PageWrapper :title="`详情 - ${detailData?.name || ''}`">
+    <Card :loading="loading">
+      <!-- 详情内容 -->
+      <Descriptions :data="detailData" :schema="descSchema" />
+    </Card>
+  </PageWrapper>
+</template>
+
+<script lang="ts" setup>
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { PageWrapper } from '/@/components/Page';
+import { Card, Descriptions } from 'ant-design-vue';
+import { getDetailApi } from '/@/api/your-module';
+
+const route = useRoute();
+const loading = ref(false);
+const detailData = ref<any>({});
+
+// 获取详情数据
+const fetchDetail = async () => {
+  try {
+    loading.value = true;
+    
+    // 获取路由参数
+    const id = route.params.id as string;
+    const cacheBuster = route.query.cacheBuster as string;
+    
+    // 调用接口，传递动态参数
+    const response = await getDetailApi({
+      id,
+      cacheBuster: cacheBuster || Date.now().toString()
+    });
+    
+    detailData.value = response;
+  } catch (error) {
+    console.error('获取详情失败:', error);
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 描述列表配置
+const descSchema = [
+  {
+    field: 'name',
+    label: '姓名',
+  },
+  {
+    field: 'status',
+    label: '状态',
+  },
+  // 更多字段...
+];
+
+onMounted(() => {
+  fetchDetail();
+});
+</script>
+```
+
+## 5. API 接口定义
+
+```typescript
+// api/your-module.ts
+import { defHttp } from '/@/utils/http/axios';
+
+// 获取详情接口
+export const getDetailApi = (params: { id: string; cacheBuster?: string }) => {
+  // 根据你的截图，API路径类似这样
+  return defHttp.get({
+    url: `/api/asset/asset-app/${params.id}`,
+    params: {
+      cacheBuster: params.cacheBuster
+    }
+  });
+};
+```
+
+## 6. 使用 ActionIcon 组件（vben 推荐方式）
+
+```typescript
+// 更简洁的方式，使用 vben 的 ActionIcon
+import { ActionIcon } from '/@/components/Table';
+
+export const columns: BasicColumn[] = [
+  // ... 其他列
+  {
+    title: '操作',
+    dataIndex: 'action',
+    width: 100,
+    customRender: ({ record }) => {
+      return h(ActionIcon, {
+        actions: [
+          {
+            icon: 'clarity:eye-line',
+            tooltip: '查看',
+            onClick: handleView.bind(null, record),
+          },
+          {
+            icon: 'clarity:note-edit-line',
+            tooltip: '编辑',
+            onClick: handleEdit.bind(null, record),
+          },
+        ],
+      });
+    },
+  },
+];
+```
+
+## 注意事项
+
+1. **缓存处理**：从你的截图看到有 `cacheBuster` 参数，这通常用于防止缓存，可以使用时间戳：
+   ```typescript
+   cacheBuster: Date.now().toString()
+   ```
+
+2. **错误处理**：记得添加错误处理和用户提示：
+   ```typescript
+   import { useMessage } from '/@/hooks/web/useMessage';
+   
+   const { createMessage } = useMessage();
+   
+   try {
+     // 请求逻辑
+   } catch (error) {
+     createMessage.error('获取详情失败');
+   }
+   ```
+
+3. **权限控制**：如果需要权限控制，可以在路由 meta 中添加：
+   ```typescript
+   meta: {
+     title: '详情页',
+     roles: ['admin', 'user'],
+   }
+   ```
+
+这样就完成了从列表页点击查看按钮到详情页并发送带动态参数接口的完整流程。
