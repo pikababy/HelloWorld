@@ -1,0 +1,91 @@
+看到你的代码，你需要将 `formData` 中的数组字段转换为逗号分隔的字符串。基于你的代码结构，这里有几种方法来实现：
+
+## 方法一：使用 computed 属性
+```javascript
+const formDataString = computed(() => {
+  const result = { ...formData.value };
+  
+  // 将数组字段转换为逗号分隔的字符串
+  if (Array.isArray(result.type)) {
+    result.type = result.type.join(',');
+  }
+  if (Array.isArray(result.mgUnit)) {
+    result.mgUnit = result.mgUnit.join(',');
+  }
+  if (Array.isArray(result.opUnit)) {
+    result.opUnit = result.opUnit.join(',');
+  }
+  if (Array.isArray(result.sysConstUnit)) {
+    result.sysConstUnit = result.sysConstUnit.join(',');
+  }
+  if (Array.isArray(result.sysOpUnit)) {
+    result.sysOpUnit = result.sysOpUnit.join(',');
+  }
+  if (Array.isArray(result.owner)) {
+    result.owner = result.owner.join(',');
+  }
+  if (Array.isArray(result.devOwner)) {
+    result.devOwner = result.devOwner.join(',');
+  }
+  if (Array.isArray(result.opOwner)) {
+    result.opOwner = result.opOwner.join(',');
+  }
+  
+  return result;
+});
+```
+
+## 方法二：创建转换函数
+```javascript
+const convertArraysToStrings = (data) => {
+  const result = { ...data };
+  const arrayFields = ['type', 'mgUnit', 'opUnit', 'sysConstUnit', 'sysOpUnit', 'owner', 'devOwner', 'opOwner'];
+  
+  arrayFields.forEach(field => {
+    if (Array.isArray(result[field])) {
+      result[field] = result[field].join(',');
+    }
+  });
+  
+  return result;
+};
+
+// 使用时
+const stringFormData = convertArraysToStrings(formData.value);
+```
+
+## 方法三：通用的深度转换函数
+```javascript
+const convertFormData = (obj) => {
+  const result = {};
+  
+  for (const [key, value] of Object.entries(obj)) {
+    if (Array.isArray(value)) {
+      result[key] = value.join(',');
+    } else if (value && typeof value === 'object') {
+      result[key] = convertFormData(value); // 递归处理嵌套对象
+    } else {
+      result[key] = value;
+    }
+  }
+  
+  return result;
+};
+
+// 使用
+const processedData = convertFormData(formData.value);
+```
+
+## 在提交表单时使用
+```javascript
+const submitForm = () => {
+  const submissionData = convertArraysToStrings(formData.value);
+  
+  // 提交处理后的数据
+  console.log(submissionData);
+  // 或者调用API
+  // await api.submitForm(submissionData);
+};
+```
+
+推荐使用方法二，因为它既简洁又明确指定了需要转换的字段，避免意外转换不需要处理的数组字段。
