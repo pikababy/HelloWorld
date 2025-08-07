@@ -1,0 +1,199 @@
+在 Vue 3 中使用 Ant Design Vue 组件添加表单必输项验证，我看到你的代码中已经有了基本的表单结构。以下是完整的必输项验证实现方法：
+
+## 1. 表单验证规则设置
+
+```javascript
+// 在 setup 中定义验证规则
+const rules = {
+  name: [
+    { required: true, message: '请输入应用系统名称', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入应用系统关文', trigger: 'blur' }
+  ],
+  environment: [
+    { required: true, message: '请选择访问链接', trigger: 'change' }
+  ],
+  type: [
+    { required: true, message: '请选择应用类型', trigger: 'change' }
+  ]
+};
+
+// 将 rules 添加到 formRef
+const formRef = ref();
+```
+
+## 2. 模板中绑定验证规则
+
+```vue
+<template>
+  <a-modal
+    v-model:visible="visible"
+    title="编辑应用资产信息"
+    width="920px"
+    :footer="null"
+    @cancel="handleCancel"
+    :maskClosable="false"
+  >
+    <a-form
+      :model="formData"
+      :rules="rules"
+      ref="formRef"
+      :label-col="{ span: 5 }"
+      :wrapper-col="{ span: 19 }"
+    >
+      <a-form-item label="应用系统中文名" name="name" required>
+        <a-input 
+          v-model:value="formData.name" 
+          placeholder="例如：境外前置系统"
+          class="a-input" 
+        />
+      </a-form-item>
+
+      <a-form-item label="应用系统英文" name="code" required>
+        <a-input 
+          v-model:value="formData.code" 
+          placeholder="例如：MPS"
+          class="a-input" 
+        />
+      </a-form-item>
+
+      <!-- 其他表单项... -->
+    </a-form>
+  </a-modal>
+</template>
+```
+
+## 3. 提交时进行验证
+
+```javascript
+// 提交表单的方法
+const handleSubmit = async () => {
+  try {
+    // 验证表单
+    await formRef.value.validateFields();
+    
+    // 验证通过后，执行提交逻辑
+    console.log('表单数据:', formData);
+    
+    // 调用API保存数据
+    // await saveFormData(formData);
+    
+    // 关闭弹窗
+    visible.value = false;
+    
+    // 提示成功
+    message.success('保存成功');
+  } catch (error) {
+    console.log('验证失败:', error);
+  }
+};
+
+// 重置表单
+const resetForm = () => {
+  formRef.value.resetFields();
+};
+```
+
+## 4. 完整的 setup 示例
+
+```javascript
+<script setup>
+import { ref, reactive } from 'vue';
+import { message } from 'ant-design-vue';
+
+const formRef = ref();
+const visible = ref(false);
+
+const initialFormData = {
+  name: '',
+  code: '',
+  type: [],
+  environment: '',
+  // 其他字段...
+};
+
+const formData = reactive({ ...initialFormData });
+
+// 验证规则
+const rules = {
+  name: [
+    { required: true, message: '请输入应用系统名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+  ],
+  code: [
+    { required: true, message: '请输入应用系统英文', trigger: 'blur' },
+    { pattern: /^[A-Za-z0-9]+$/, message: '只能输入英文和数字', trigger: 'blur' }
+  ],
+  environment: [
+    { required: true, message: '请选择访问链接', trigger: 'change' }
+  ],
+  type: [
+    { required: true, message: '请选择应用类型', trigger: 'change' }
+  ]
+};
+
+// 打开弹窗
+const showModal = () => {
+  visible.value = true;
+};
+
+// 关闭弹窗
+const handleCancel = () => {
+  formRef.value.resetFields();
+  visible.value = false;
+};
+
+// 提交表单
+const handleSubmit = async () => {
+  try {
+    await formRef.value.validateFields();
+    
+    // 提交逻辑
+    console.log('提交数据:', formData);
+    
+    visible.value = false;
+    message.success('保存成功');
+  } catch (error) {
+    message.error('请完善必填项信息');
+  }
+};
+</script>
+```
+
+## 5. 自定义验证器
+
+如果需要更复杂的验证逻辑，可以使用自定义验证器：
+
+```javascript
+const validateCode = async (rule, value) => {
+  if (!value) {
+    return Promise.reject('请输入应用系统英文');
+  }
+  if (!/^[A-Za-z0-9]+$/.test(value)) {
+    return Promise.reject('只能输入英文和数字');
+  }
+  // 可以添加异步验证，如检查唯一性
+  // const isExist = await checkCodeExist(value);
+  // if (isExist) {
+  //   return Promise.reject('该编码已存在');
+  // }
+  return Promise.resolve();
+};
+
+// 在 rules 中使用
+const rules = {
+  code: [
+    { validator: validateCode, trigger: 'blur' }
+  ]
+};
+```
+
+## 注意事项
+
+1. **name 属性必须与 formData 中的字段名一致**
+2. **required 属性在 a-form-item 上只是显示红色星号，真正的验证需要在 rules 中定义**
+3. **trigger 可以是 'blur'（失焦时验证）、'change'（值改变时验证）或两者都有**
+4. **使用 validateFields() 可以验证所有字段，validateFields(['name', 'code']) 可以验证指定字段**
+
+这样就完成了表单必输项的验证配置。当用户提交表单时，会自动验证所有必填字段，如果有未填写的会显示错误提示。
