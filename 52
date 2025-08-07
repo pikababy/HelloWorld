@@ -1,0 +1,381 @@
+在 Ant Design Vue 中实现表格列的下拉框，可以使用 `customRender` 或插槽来自定义列的渲染。以下是几种实现方式：
+
+## 方案一：使用 customRender（推荐）
+
+```vue
+<template>
+  <a-table :columns="columns" :data-source="dataSource">
+  </a-table>
+</template>
+
+<script setup>
+import { ref, reactive } from 'vue'
+import { Select } from 'ant-design-vue'
+
+const dataSource = ref([
+  {
+    key: '1',
+    level: '高危',
+    status: '待处理',
+    result: ''
+  },
+  // 更多数据...
+])
+
+const handleResultChange = (value, record) => {
+  console.log('选择的处理结果:', value, '行数据:', record)
+  // 更新数据或调用接口
+  record.result = value
+}
+
+const columns = [
+  {
+    title: '级别',
+    dataIndex: 'level',
+    key: 'level',
+  },
+  {
+    title: '漏洞状态',
+    dataIndex: 'status',
+    key: 'status',
+    customRender: ({ text }) => {
+      return h('a-tag', { color: 'red' }, () => text)
+    }
+  },
+  {
+    title: '处理结果',
+    dataIndex: 'result',
+    key: 'result',
+    customRender: ({ record }) => {
+      return h(Select, {
+        value: record.result,
+        placeholder: '请选择处理结果',
+        style: { width: '150px' },
+        options: [
+          { value: 'confirmed', label: '确认不涉及' },
+          { value: 'accepted', label: '接受风险' },
+          { value: 'fixed', label: '已修复' }
+        ],
+        onChange: (value) => handleResultChange(value, record)
+      })
+    }
+  },
+  {
+    title: '操作',
+    key: 'action',
+    customRender: ({ record }) => {
+      return h('a-button', {
+        type: 'primary',
+        onClick: () => handleView(record)
+      }, () => '查看')
+    }
+  }
+]
+</script>
+```
+
+## 方案二：使用作用域插槽（更灵活）
+
+```vue
+<template>
+  <a-table :columns="columns" :data-source="dataSource">
+    <!-- 使用 bodyCell 插槽自定义单元格 -->
+    <template #bodyCell="{ column, record }">
+      <template v-if="column.key === 'status'">
+        <a-tag color="red">{{ record.status }}</a-tag>
+      </template>
+      
+      <template v-else-if="column.key === 'result'">
+        <a-select
+          v-model:value="record.result"
+          style="width: 150px"
+          placeholder="请选择处理结果"
+          @change="handleResultChange($event, record)"
+        >
+          <a-select-option value="confirmed">确认不涉及</a-select-option>
+          <a-select-option value="accepted">接受风险</a-select-option>
+          <a-select-option value="fixed">已修复</a-select-option>
+        </a-select>
+      </template>
+      
+      <template v-else-if="column.key === 'action'">
+        <a-button type="primary" @click="handleView(record)">查看</a-button>
+      </template>
+    </template>
+  </a-table>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+
+const dataSource = ref([
+  {
+    key: '1',
+    level: '高危',
+    status: '待处理',
+    result: ''
+  },
+  // 更多数据...
+])
+
+const columns = [
+  {
+    title: '级别',
+    dataIndex: 'level',
+    key: 'level',
+  },
+  {
+    title: '漏洞状态',
+    dataIndex: 'status',
+    key: 'status',
+  },
+  {
+    title: '处理结果',
+    dataIndex: 'result',
+    key: 'result',
+  },
+  {
+    title: '操作',
+    key: 'action',
+  }
+]
+
+const handleResultChange = (value, record) => {
+  console.log('选择的处理结果:', value)
+  console.log('当前行数据:', record)
+  // 可以在这里调用接口更新数据
+}
+
+const handleView = (record) => {
+  console.log('查看详情:', record)
+}
+</script>
+```
+
+## 方案三：完整示例（带样式和交互）## 关键点说明
+
+1. **下拉框实现**：
+   - 使用 `a-select` 组件作为下拉框
+   - 通过 `v-model:value` 双向绑定数据
+   - 设置 `placeholder` 提示文字
+
+2. **自定义列渲染**：
+   - 使用 `#bodyCell` 插槽自定义单元格内容
+   - 通过 `column.key` 判断当前是哪一列
+
+3. **事件处理**：
+   - `@change` 事件监听下拉框选择变化
+   - 可以在事件处理函数中调用接口保存数据
+
+4. **样式优化**：
+   - 设置下拉框宽度 `style="width: 150px"`
+   - 使用 `a-tag` 组件显示状态，配合颜色区分
+
+5. **可选配置**：
+   - `allow-clear`：允许清空选择
+   - `disabled`：根据条件禁用下拉框
+   - `loading`：显示加载状态
+
+这个实现方式与你截图中的效果一致，你可以根据实际需求调整下拉选项和样式。
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>表格下拉框示例</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.0/reset.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.0/antd.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.0/antd.min.css" rel="stylesheet">
+  <style>
+    #app {
+      padding: 20px;
+      background: #f0f2f5;
+      min-height: 100vh;
+    }
+    .table-container {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+    }
+    .header {
+      margin-bottom: 20px;
+      font-size: 18px;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="table-container">
+      <div class="header">漏洞管理列表</div>
+      <a-table 
+        :columns="columns" 
+        :data-source="dataSource"
+        :pagination="{ pageSize: 10 }"
+      >
+        <template #bodyCell="{ column, record, index }">
+          <!-- 漏洞状态列 -->
+          <template v-if="column.key === 'status'">
+            <a-tag :color="getStatusColor(record.status)">
+              {{ record.status }}
+            </a-tag>
+          </template>
+          
+          <!-- 处理结果列 -->
+          <template v-else-if="column.key === 'result'">
+            <a-select
+              v-model:value="record.result"
+              style="width: 150px"
+              placeholder="请选择"
+              @change="handleResultChange($event, record, index)"
+              allow-clear
+            >
+              <a-select-option value="confirmed">
+                确认不涉及
+              </a-select-option>
+              <a-select-option value="accepted">
+                接受风险
+              </a-select-option>
+              <a-select-option value="fixed">
+                已修复
+              </a-select-option>
+            </a-select>
+          </template>
+          
+          <!-- 操作列 -->
+          <template v-else-if="column.key === 'action'">
+            <a-space>
+              <a-button 
+                type="primary" 
+                size="small"
+                @click="handleView(record)"
+              >
+                查看
+              </a-button>
+            </a-space>
+          </template>
+        </template>
+      </a-table>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive } = Vue;
+    
+    createApp({
+      setup() {
+        const dataSource = ref([
+          {
+            key: '1',
+            level: '高危',
+            status: '待处理',
+            description: 'SQL注入漏洞',
+            result: ''
+          },
+          {
+            key: '2',
+            level: '中危',
+            status: '处理中',
+            description: 'XSS跨站脚本',
+            result: 'confirmed'
+          },
+          {
+            key: '3',
+            level: '低危',
+            status: '已处理',
+            description: '信息泄露',
+            result: 'fixed'
+          },
+          {
+            key: '4',
+            level: '高危',
+            status: '待处理',
+            description: '权限绕过',
+            result: ''
+          }
+        ]);
+
+        const columns = [
+          {
+            title: '级别',
+            dataIndex: 'level',
+            key: 'level',
+            width: 100,
+          },
+          {
+            title: '漏洞描述',
+            dataIndex: 'description',
+            key: 'description',
+          },
+          {
+            title: '漏洞状态',
+            dataIndex: 'status',
+            key: 'status',
+            width: 120,
+          },
+          {
+            title: '处理结果',
+            dataIndex: 'result',
+            key: 'result',
+            width: 180,
+          },
+          {
+            title: '操作',
+            key: 'action',
+            width: 100,
+          }
+        ];
+
+        const getStatusColor = (status) => {
+          const colorMap = {
+            '待处理': 'red',
+            '处理中': 'orange',
+            '已处理': 'green'
+          };
+          return colorMap[status] || 'default';
+        };
+
+        const handleResultChange = (value, record, index) => {
+          console.log('处理结果已更改:', {
+            value: value,
+            record: record,
+            index: index
+          });
+          
+          // 显示成功提示
+          antd.message.success(`第${index + 1}行处理结果已更新为: ${value || '空'}`);
+          
+          // 这里可以调用API保存数据
+          // await updateResult(record.key, value);
+        };
+
+        const handleView = (record) => {
+          antd.Modal.info({
+            title: '漏洞详情',
+            content: `
+              级别: ${record.level}
+              描述: ${record.description}
+              状态: ${record.status}
+              处理结果: ${record.result || '未处理'}
+            `,
+            onOk() {},
+          });
+        };
+
+        return {
+          dataSource,
+          columns,
+          getStatusColor,
+          handleResultChange,
+          handleView
+        };
+      }
+    }).use(antd).mount('#app');
+  </script>
+</body>
+</html>
+
+
+
