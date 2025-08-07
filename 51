@@ -1,0 +1,202 @@
+在 Vue 3 中处理父子组件间的表单数据重置，有几种常见的方案。我来为你提供几个实现方式：
+
+## 方案一：使用 ref 暴露子组件方法（推荐）
+
+**子组件 B (表单组件):**
+```vue
+<template>
+  <el-form ref="formRef" :model="formData">
+    <!-- 表单内容 -->
+    <el-form-item label="名称">
+      <el-input v-model="formData.name" />
+    </el-form-item>
+    <!-- 其他表单项 -->
+    <el-button @click="handleSubmit">提交</el-button>
+  </el-form>
+</template>
+
+<script setup>
+import { ref, reactive } from 'vue'
+
+const formRef = ref()
+const initialFormData = {
+  name: '',
+  // 其他字段
+}
+
+const formData = reactive({ ...initialFormData })
+
+const handleSubmit = () => {
+  // 验证表单
+  formRef.value?.validate((valid) => {
+    if (valid) {
+      // 触发父组件事件，传递表单数据
+      emit('submit', { ...formData })
+    }
+  })
+}
+
+// 重置表单方法
+const resetForm = () => {
+  // 重置表单数据
+  Object.assign(formData, initialFormData)
+  // 清除表单验证状态
+  formRef.value?.resetFields()
+}
+
+// 暴露方法给父组件
+defineExpose({
+  resetForm
+})
+
+const emit = defineEmits(['submit'])
+</script>
+```
+
+**父组件 A:**
+```vue
+<template>
+  <div>
+    <FormComponent ref="formComponentRef" @submit="handleFormSubmit" />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import FormComponent from './FormComponent.vue'
+
+const formComponentRef = ref()
+
+const handleFormSubmit = async (formData) => {
+  try {
+    // 调用接口
+    const res = await postAsset(formData)
+    
+    if (res && res.id) {
+      // 成功后重置子组件表单
+      formComponentRef.value?.resetForm()
+      // 显示成功提示
+      message.success('保存成功')
+    }
+  } catch (error) {
+    message.error('请求失败')
+  }
+}
+</script>
+```
+
+## 方案二：使用 v-model 双向绑定
+
+**子组件 B:**
+```vue
+<template>
+  <el-form :model="localFormData">
+    <!-- 表单内容 -->
+    <el-button @click="handleSubmit">提交</el-button>
+  </el-form>
+</template>
+
+<script setup>
+import { computed } from 'vue'
+
+const props = defineProps({
+  modelValue: {
+    type: Object,
+    default: () => ({})
+  }
+})
+
+const emit = defineEmits(['update:modelValue', 'submit'])
+
+const localFormData = computed({
+  get: () => props.modelValue,
+  set: (val) => emit('update:modelValue', val)
+})
+
+const handleSubmit = () => {
+  emit('submit')
+}
+</script>
+```
+
+**父组件 A:**
+```vue
+<template>
+  <FormComponent v-model="formData" @submit="handleFormSubmit" />
+</template>
+
+<script setup>
+import { reactive } from 'vue'
+
+const initialData = {
+  name: '',
+  // 其他字段
+}
+
+const formData = reactive({ ...initialData })
+
+const handleFormSubmit = async () => {
+  try {
+    const res = await postAsset(formData)
+    if (res && res.id) {
+      // 重置表单数据
+      Object.assign(formData, initialData)
+      message.success('保存成功')
+    }
+  } catch (error) {
+    message.error('请求失败')
+  }
+}
+</script>
+```
+
+## 方案三：使用事件通知
+
+**子组件 B:**
+```vue
+<script setup>
+import { watch } from 'vue'
+
+const props = defineProps({
+  resetTrigger: Number
+})
+
+// 监听重置触发器
+watch(() => props.resetTrigger, () => {
+  if (props.resetTrigger > 0) {
+    resetFormData()
+  }
+})
+
+const resetFormData = () => {
+  Object.assign(formData, initialFormData)
+  formRef.value?.resetFields()
+}
+</script>
+```
+
+**父组件 A:**
+```vue
+<script setup>
+const resetTrigger = ref(0)
+
+const handleFormSubmit = async (formData) => {
+  const res = await postAsset(formData)
+  if (res && res.id) {
+    // 触发重置
+    resetTrigger.value++
+  }
+}
+</script>
+```
+
+## 最佳实践建议
+
+根据你的代码场景，我推荐使用**方案一（ref 暴露方法）**，因为：
+
+1. **清晰明确**：父组件可以直接调用子组件的重置方法
+2. **解耦性好**：子组件内部管理自己的状态和重置逻辑
+3. **TypeScript 友好**：如果使用 TypeScript，这种方式类型推导更准确
+4. **符合 Vue 3 设计理念**：使用 Composition API 的 `defineExpose`
+
+这样你的代码结构会更清晰，维护起来也更方便。
