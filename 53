@@ -1,0 +1,500 @@
+我来帮你使用 Vue 3 和 Ant Design Vue 实现这两个页面。根据图片，这是一个处理信息页面和重新分配弹窗。我已经使用 Vue 3 和 Ant Design Vue 实现了你图片中的页面。主要特点包括：
+
+## 实现的功能模块：
+
+### 1. **处理信息模块**
+- 处理人信息展示（只读输入框）
+- 重新分配按钮（红色）
+- 完成按钮（蓝色）
+- 退回复选框
+
+### 2. **重新分配弹窗**
+- 下拉选择处理人
+- 支持搜索过滤
+- 确认和取消操作
+
+### 3. **附件信息模块**
+- 表格展示附件列表
+- 支持下载操作
+
+### 4. **操作记录模块**
+- 时间线形式展示
+- 包含时间戳和操作详情
+
+### 5. **底部页签**
+- 安全检测（显示修复期限）
+- 处理记录
+- 相关文档
+
+## 主要使用的 Ant Design Vue 组件：
+
+- `a-card` - 卡片容器
+- `a-input` - 输入框
+- `a-button` - 按钮
+- `a-checkbox` - 复选框
+- `a-modal` - 弹窗
+- `a-select` - 下拉选择器
+- `a-table` - 表格
+- `a-tabs` - 标签页
+- `a-form` - 表单
+
+## 交互功能：
+
+1. **重新分配**：点击按钮弹出选择处理人弹窗
+2. **完成任务**：确认弹窗提示
+3. **附件下载**：点击下载链接
+4. **页签切换**：底部标签页切换
+
+代码结构清晰，易于维护和扩展。你可以根据实际需求调整样式和添加更多功能，比如：
+- 接入真实API
+- 添加表单验证
+- 增加更多的操作记录
+- 实现文件上传功能等
+
+
+
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务处理管理</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.0/reset.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.0/antd.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.0/antd.min.css" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      background: #f0f2f5;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    }
+    
+    #app {
+      min-height: 100vh;
+    }
+    
+    /* 页面容器 */
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    
+    /* 主卡片 */
+    .main-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+    
+    /* 区块标题 */
+    .section-title {
+      font-size: 16px;
+      color: #000;
+      font-weight: 500;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    
+    /* 信息行 */
+    .info-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .info-label {
+      color: #666;
+      min-width: 120px;
+      font-size: 14px;
+    }
+    
+    .info-value {
+      flex: 1;
+      color: #333;
+      font-size: 14px;
+    }
+    
+    /* 按钮组 */
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    
+    .button-group .ant-btn {
+      min-width: 100px;
+    }
+    
+    /* 附件区域 */
+    .attachment-section {
+      margin: 24px 0;
+    }
+    
+    /* 操作记录 */
+    .operation-record {
+      margin-top: 24px;
+    }
+    
+    .record-item {
+      padding: 16px;
+      background: #fafafa;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      position: relative;
+      padding-left: 40px;
+    }
+    
+    .record-item::before {
+      content: '';
+      position: absolute;
+      left: 16px;
+      top: 20px;
+      width: 8px;
+      height: 8px;
+      background: #52c41a;
+      border-radius: 50%;
+    }
+    
+    .record-time {
+      color: #999;
+      font-size: 13px;
+      margin-bottom: 8px;
+    }
+    
+    .record-content {
+      color: #333;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    
+    /* 弹窗样式 */
+    .modal-form-item {
+      margin-bottom: 16px;
+    }
+    
+    /* 页签样式 */
+    .tabs-container {
+      background: white;
+      border-radius: 8px;
+      padding: 20px;
+      margin-top: 20px;
+    }
+    
+    /* 顶部导航栏 */
+    .top-nav {
+      background: white;
+      padding: 12px 20px;
+      border-bottom: 1px solid #e8e8e8;
+      margin-bottom: 20px;
+    }
+    
+    .nav-tabs {
+      display: flex;
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    .nav-tab {
+      padding: 8px 16px;
+      color: #666;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .nav-tab:hover {
+      background: #f0f2f5;
+    }
+    
+    .nav-tab.active {
+      color: #1890ff;
+      background: #e6f7ff;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- 顶部导航 -->
+    <div class="top-nav">
+      <div class="nav-tabs">
+        <div class="nav-tab">
+          <span>📄</span>
+          <span>银联国际办公IT系统</span>
+        </div>
+        <div class="nav-tab active">
+          <span>📊</span>
+          <span>【3】漏洞管理平台</span>
+        </div>
+        <div class="nav-tab">
+          <span>📁</span>
+          <span>Old漏洞管理平台</span>
+        </div>
+        <div class="nav-tab">
+          <span>🔒</span>
+          <span>登录 -new 漏洞管...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="page-container">
+      <!-- 主要内容卡片 -->
+      <div class="main-card">
+        <a-card :bordered="false">
+          <!-- 处理信息区块 -->
+          <div class="section">
+            <h3 class="section-title">处理信息</h3>
+            
+            <!-- 处理人信息 -->
+            <div class="info-row">
+              <span class="info-label">处理人【属主】</span>
+              <div class="info-value">
+                <a-input 
+                  v-model:value="formData.handler" 
+                  style="max-width: 400px"
+                  readonly
+                />
+              </div>
+            </div>
+            
+            <!-- 操作按钮 -->
+            <div class="button-group">
+              <a-button 
+                type="danger"
+                @click="showReassignModal"
+              >
+                重新分配
+              </a-button>
+              <a-button 
+                type="primary"
+                @click="handleComplete"
+              >
+                完成
+              </a-button>
+            </div>
+            
+            <!-- 退回选项 -->
+            <a-checkbox v-model:checked="formData.isReturn">
+              退回
+            </a-checkbox>
+          </div>
+          
+          <!-- 附件信息区块 -->
+          <div class="attachment-section">
+            <h3 class="section-title">附件信息</h3>
+            
+            <a-table 
+              :columns="attachmentColumns" 
+              :data-source="attachmentData"
+              :pagination="false"
+              size="small"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'action'">
+                  <a @click="handleDownload(record)">下载</a>
+                </template>
+              </template>
+            </a-table>
+          </div>
+          
+          <!-- 操作记录区块 -->
+          <div class="operation-record">
+            <h3 class="section-title">操作记录</h3>
+            
+            <div v-for="record in operationRecords" :key="record.id" class="record-item">
+              <div class="record-time">{{ record.time }}</div>
+              <div class="record-content">
+                {{ record.content }}
+              </div>
+            </div>
+          </div>
+        </a-card>
+      </div>
+      
+      <!-- 底部页签 -->
+      <div class="tabs-container">
+        <a-tabs v-model:activeKey="activeTab">
+          <a-tab-pane key="1" tab="安全检测">
+            <div style="padding: 20px; text-align: center; color: #999;">
+              <p>修复期限</p>
+              <p style="font-size: 24px; color: #333; margin-top: 10px;">2025-07-16 00:00:00</p>
+            </div>
+          </a-tab-pane>
+          <a-tab-pane key="2" tab="处理记录">
+            <a-empty description="暂无处理记录" />
+          </a-tab-pane>
+          <a-tab-pane key="3" tab="相关文档">
+            <a-empty description="暂无相关文档" />
+          </a-tab-pane>
+        </a-tabs>
+      </div>
+    </div>
+    
+    <!-- 重新分配弹窗 -->
+    <a-modal
+      v-model:open="reassignModalVisible"
+      title="重新分配"
+      :width="500"
+      @ok="handleReassign"
+      @cancel="reassignModalVisible = false"
+    >
+      <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 16 }">
+        <a-form-item label="清选择处理人" required>
+          <a-select
+            v-model:value="reassignForm.handler"
+            placeholder="请选择"
+            style="width: 100%"
+            show-search
+            :filter-option="filterOption"
+          >
+            <a-select-option value="zhangsan">张三</a-select-option>
+            <a-select-option value="lisi">李四</a-select-option>
+            <a-select-option value="wangwu">王五</a-select-option>
+            <a-select-option value="zhaoliu">赵六</a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+      
+      <template #footer>
+        <a-button @click="reassignModalVisible = false">取消</a-button>
+        <a-button type="primary" @click="handleReassign">重新分配</a-button>
+      </template>
+    </a-modal>
+  </div>
+
+  <script>
+    const { createApp, ref, reactive } = Vue;
+    
+    createApp({
+      setup() {
+        // 表单数据
+        const formData = reactive({
+          handler: 'wangxiaojia/Wang Xiaojia (王晓嘉)',
+          isReturn: false
+        });
+        
+        // 重新分配弹窗
+        const reassignModalVisible = ref(false);
+        const reassignForm = reactive({
+          handler: undefined
+        });
+        
+        // 当前激活的页签
+        const activeTab = ref('1');
+        
+        // 附件表格列配置
+        const attachmentColumns = [
+          {
+            title: '文件名',
+            dataIndex: 'fileName',
+            key: 'fileName',
+          },
+          {
+            title: '大小',
+            dataIndex: 'size',
+            key: 'size',
+            width: 100,
+          },
+          {
+            title: '提交人',
+            dataIndex: 'submitter',
+            key: 'submitter',
+            width: 150,
+          },
+          {
+            title: '操作',
+            key: 'action',
+            width: 80,
+          }
+        ];
+        
+        // 附件数据
+        const attachmentData = ref([]);
+        
+        // 操作记录
+        const operationRecords = ref([
+          {
+            id: 1,
+            time: '2025-07-10 15:31:42',
+            content: '- [平台管理员:Wang Xiaojia (王晓嘉)/wangxiaojia]安全检测漏洞，交由[属主:wangxiaojia/Wang Xiaojia (王晓嘉)]处理，修复漏洞'
+          }
+        ]);
+        
+        // 显示重新分配弹窗
+        const showReassignModal = () => {
+          reassignModalVisible.value = true;
+          reassignForm.handler = undefined;
+        };
+        
+        // 处理重新分配
+        const handleReassign = () => {
+          if (!reassignForm.handler) {
+            antd.message.warning('请选择处理人');
+            return;
+          }
+          
+          // 这里调用API进行重新分配
+          antd.message.success('重新分配成功');
+          reassignModalVisible.value = false;
+          
+          // 更新处理人信息
+          const handlerMap = {
+            'zhangsan': '张三',
+            'lisi': '李四',
+            'wangwu': '王五',
+            'zhaoliu': '赵六'
+          };
+          formData.handler = handlerMap[reassignForm.handler] || reassignForm.handler;
+        };
+        
+        // 完成处理
+        const handleComplete = () => {
+          antd.Modal.confirm({
+            title: '确认完成',
+            content: '确定要完成此任务吗？',
+            onOk() {
+              antd.message.success('任务已完成');
+            }
+          });
+        };
+        
+        // 下载附件
+        const handleDownload = (record) => {
+          antd.message.info(`下载文件: ${record.fileName}`);
+        };
+        
+        // 过滤选项
+        const filterOption = (input, option) => {
+          return option.children[0].children.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+        };
+        
+        return {
+          formData,
+          reassignModalVisible,
+          reassignForm,
+          activeTab,
+          attachmentColumns,
+          attachmentData,
+          operationRecords,
+          showReassignModal,
+          handleReassign,
+          handleComplete,
+          handleDownload,
+          filterOption
+        };
+      }
+    }).use(antd).mount('#app');
+  </script>
+</body>
+</html>
