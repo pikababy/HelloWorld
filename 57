@@ -1,0 +1,255 @@
+<template>
+  <a-modal
+    v-model:open="visible"
+    :title="title"
+    :width="600"
+    :centered="true"
+    :closable="true"
+    :mask-closable="false"
+    :destroy-on-close="true"
+    @cancel="handleCancel"
+  >
+    <!-- 弹窗内容 -->
+    <div class="batch-mark-content">
+      <a-form
+        :model="formData"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 16 }"
+      >
+        <a-form-item label="最后检测时间" required>
+          <a-space>
+            <a-date-picker
+              v-model:value="formData.date"
+              format="YYYY-MM-DD"
+              placeholder="选择日期"
+              :disabled-date="disabledDate"
+              style="width: 200px"
+              :allow-clear="true"
+            />
+            <a-time-picker
+              v-model:value="formData.time"
+              format="HH:mm"
+              placeholder="选择时间"
+              :minute-step="1"
+              style="width: 120px"
+              :allow-clear="true"
+            />
+            <a-button
+              type="link"
+              size="small"
+              @click="showDateList"
+            >
+              <template #icon>
+                <UnorderedListOutlined />
+              </template>
+            </a-button>
+          </a-space>
+        </a-form-item>
+      </a-form>
+    </div>
+
+    <!-- 自定义底部按钮 -->
+    <template #footer>
+      <div class="modal-footer">
+        <a-button 
+          key="cancel"
+          @click="handleCancel"
+        >
+          <template #icon>
+            <CloseCircleOutlined />
+          </template>
+          取消
+        </a-button>
+        <a-button 
+          key="confirm" 
+          type="primary"
+          danger
+          @click="handleConfirm"
+          :loading="loading"
+        >
+          <template #icon>
+            <CheckCircleOutlined />
+          </template>
+          确认
+        </a-button>
+      </div>
+    </template>
+  </a-modal>
+</template>
+
+<script setup>
+import { ref, watch, computed } from 'vue'
+import { message } from 'ant-design-vue'
+import dayjs from 'dayjs'
+import { 
+  CloseCircleOutlined, 
+  CheckCircleOutlined, 
+  UnorderedListOutlined 
+} from '@ant-design/icons-vue'
+
+// 定义组件的 props
+const props = defineProps({
+  // 控制弹窗显示/隐藏
+  modelValue: {
+    type: Boolean,
+    default: false
+  },
+  // 弹窗标题
+  title: {
+    type: String,
+    default: '批量标识最后检测时间'
+  },
+  // 选中的数据项（用于批量操作）
+  selectedItems: {
+    type: Array,
+    default: () => []
+  }
+})
+
+// 定义组件的 emits
+const emit = defineEmits(['update:modelValue', 'confirm', 'cancel'])
+
+// 内部控制弹窗显示状态
+const visible = ref(props.modelValue)
+
+// 表单数据
+const formData = ref({
+  date: null,
+  time: null
+})
+
+// 加载状态
+const loading = ref(false)
+
+// 监听外部 props 变化
+watch(() => props.modelValue, (newVal) => {
+  visible.value = newVal
+  if (newVal) {
+    // 打开弹窗时重置表单
+    resetForm()
+  }
+})
+
+// 监听内部状态变化，同步到外部
+watch(visible, (newVal) => {
+  emit('update:modelValue', newVal)
+})
+
+// 重置表单
+const resetForm = () => {
+  formData.value = {
+    date: null,
+    time: null
+  }
+}
+
+// 禁用未来日期
+const disabledDate = (current) => {
+  return current && current > dayjs().endOf('day')
+}
+
+// 获取完整的日期时间值
+const getDateTime = () => {
+  if (!formData.value.date || !formData.value.time) {
+    return null
+  }
+  
+  const dateStr = formData.value.date.format('YYYY-MM-DD')
+  const timeStr = formData.value.time.format('HH:mm')
+  return `${dateStr} ${timeStr}:00`
+}
+
+// 显示日期列表（扩展功能）
+const showDateList = () => {
+  message.info('日期列表功能待实现')
+}
+
+// 确认操作
+const handleConfirm = async () => {
+  const dateTime = getDateTime()
+  
+  if (!dateTime) {
+    message.warning('请选择完整的日期和时间')
+    return
+  }
+
+  if (props.selectedItems.length === 0) {
+    message.warning('请先选择要标识的数据')
+    return
+  }
+
+  loading.value = true
+  
+  try {
+    // 触发确认事件，传递选中的时间和选中的项
+    await emit('confirm', {
+      dateTime,
+      selectedItems: props.selectedItems
+    })
+    
+    message.success('批量标识成功')
+    visible.value = false
+  } catch (error) {
+    message.error('操作失败，请重试')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 取消操作
+const handleCancel = () => {
+  emit('cancel')
+  visible.value = false
+}
+</script>
+
+<style scoped>
+.batch-mark-content {
+  padding: 20px 0;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-footer .ant-btn {
+  min-width: 88px;
+}
+
+/* 调整日期时间选择器样式 */
+:deep(.ant-form-item-label) {
+  text-align: right;
+}
+
+:deep(.ant-form-item-label > label) {
+  color: rgba(0, 0, 0, 0.85);
+  font-size: 14px;
+}
+
+:deep(.ant-form-item-label > label::after) {
+  content: ':';
+  margin: 0 8px 0 2px;
+}
+
+:deep(.ant-form-item-required::before) {
+  display: inline-block;
+  margin-right: 4px;
+  color: #ff4d4f;
+  font-size: 14px;
+  font-family: SimSun, sans-serif;
+  line-height: 1;
+  content: '*';
+}
+
+/* 确保时间选择器的样式一致 */
+:deep(.ant-picker) {
+  border-radius: 2px;
+}
+
+:deep(.ant-space-item) {
+  display: flex;
+  align-items: center;
+}
+</style>
