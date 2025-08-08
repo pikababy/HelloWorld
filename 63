@@ -1,0 +1,72 @@
+我来为你创建一个纯Vue3的角色选择器组件，适合在Vben Admin项目中使用。我已经为你创建了一个完整的Vue3角色选择器组件。这个组件具有以下特点：
+
+## 核心功能
+
+### 1. **角色切换标签**
+- 5个角色选项（平台管理员、安全领导、系线领导、审核员、属主）
+- 选中状态使用蓝色高亮样式
+- 平滑的切换动画效果
+
+### 2. **数据表格**
+- 支持全选/单选功能
+- 根据不同角色显示不同数据
+- 状态标签带颜色区分（审核中、复核中、待测试等）
+- 空数据状态提示
+
+### 3. **TypeScript支持**
+- 完整的类型定义
+- 接口类型声明
+- 类型安全的数据处理
+
+## 在Vben Admin中使用
+
+### 1. 直接使用组件
+```bash
+# 将组件保存为 src/components/RoleSelector/index.vue
+```
+
+### 2. 在页面中引入
+```vue
+<template>
+  <RoleSelector />
+</template>
+
+<script setup lang="ts">
+import RoleSelector from '@/components/RoleSelector/index.vue';
+</script>
+```
+
+### 3. 集成Vben Table（可选）
+如果要使用Vben Admin的BasicTable组件，可以这样修改：
+
+```typescript
+import { BasicTable, useTable } from '@/components/Table';
+
+const [registerTable, { reload }] = useTable({
+  api: async () => {
+    return getTaskListByRole(activeRole.value);
+  },
+  columns: [
+    // 列配置
+  ],
+  rowSelection: {
+    type: 'checkbox',
+  },
+});
+```
+
+## 样式特点
+
+- **完全还原**：根据你的截图还原了所有视觉细节
+- **响应式设计**：适配不同屏幕尺寸
+- **平滑动画**：所有交互都有过渡效果
+- **主题兼容**：可以轻松适配Vben Admin的主题系统
+
+## 扩展建议
+
+1. **添加API调用**：将模拟数据替换为真实API
+2. **添加更多操作**：如批量操作、导出等功能
+3. **权限控制**：根据用户权限显示不同角色标签
+4. **数据缓存**：切换角色时缓存已加载的数据
+
+这个组件可以直接复制到你的项目中使用，需要调整什么细节吗？
