@@ -348,3 +348,368 @@ const handleView = async (record: any) => {
 
 这样既保证了性能，又维护了代码的整洁性和可维护性。
 
+
+对于子组件表单的提交事件触发的交易是放在父组件还是子组件？
+
+
+关于子组件表单提交事件的处理位置，这是个经典的组件设计问题。我来分析几种方案的优缺点：
+
+## 方案对比
+
+### 方案一：子组件处理提交（推荐）
+
+子组件内部完成整个提交流程：
+
+```vue
+<!-- 子组件 EditModal.vue -->
+<template>
+  <BasicModal
+    @register="registerModal"
+    title="编辑"
+    @ok="handleSubmit"
+  >
+    <BasicForm @register="registerForm" />
+  </BasicModal>
+</template>
+
+<script setup lang="ts">
+import { BasicModal, useModalInner } from '/@/components/Modal';
+import { BasicForm, useForm } from '/@/components/Form';
+import { createApi, updateApi } from '/@/api/business';
+
+const emit = defineEmits(['success', 'register']);
+
+const [registerForm, { validate, resetFields }] = useForm({
+  schemas: formSchemas,
+});
+
+const [registerModal, { setModalProps, closeModal }] = useModalInner(async (data) => {
+  resetFields();
+  setModalProps({ confirmLoading: false });
+  
+  // 回填表单数据
+  if (data?.record) {
+    setFieldsValue(data.record);
+  }
+});
+
+// 提交处理
+const handleSubmit = async () => {
+  try {
+    const values = await validate();
+    setModalProps({ confirmLoading: true });
+    
+    // 根据是否有 id 判断新增或编辑
+    if (values.id) {
+      await updateApi(values);
+      message.success('更新成功');
+    } else {
+      await createApi(values);
+      message.success('创建成功');
+    }
+    
+    closeModal();
+    emit('success'); // 通知父组件刷新列表
+  } finally {
+    setModalProps({ confirmLoading: false });
+  }
+};
+</script>
+```
+
+父组件使用：
+
+```vue
+<!-- 父组件 -->
+<template>
+  <div>
+    <BasicTable @register="registerTable" />
+    <EditModal @register="registerModal" @success="handleSuccess" />
+  </div>
+</template>
+
+<script setup lang="ts">
+const [registerModal, { openModal }] = useModal();
+const [registerTable, { reload }] = useTable({...});
+
+// 打开弹窗
+const handleEdit = (record) => {
+  openModal(true, { record });
+};
+
+// 成功后刷新列表
+const handleSuccess = () => {
+  reload();
+};
+</script>
+```
+
+**优点：**
+- ✅ 子组件自包含，职责明确
+- ✅ 复用性强，可在多处使用
+- ✅ 父组件代码简洁
+- ✅ 符合 vben admin 的设计理念
+
+**缺点：**
+- 子组件依赖具体 API
+- 较难实现复杂的业务流程控制
+
+### 方案二：父组件处理提交
+
+提交事件传递到父组件处理：
+
+```vue
+<!-- 子组件 -->
+<template>
+  <BasicModal
+    @register="registerModal"
+    @ok="handleSubmit"
+  >
+    <BasicForm @register="registerForm" />
+  </BasicModal>
+</template>
+
+<script setup lang="ts">
+const emit = defineEmits(['submit', 'register']);
+
+const handleSubmit = async () => {
+  const values = await validate();
+  emit('submit', values);
+};
+</script>
+```
+
+```vue
+<!-- 父组件 -->
+<script setup lang="ts">
+const handleSubmit = async (values) => {
+  try {
+    if (values.id) {
+      await updateApi(values);
+    } else {
+      await createApi(values);
+    }
+    message.success('操作成功');
+    closeModal();
+    reload();
+  } catch (error) {
+    // 错误处理
+  }
+};
+</script>
+```
+
+**优点：**
+- 父组件控制业务流程
+- 子组件更纯粹，不依赖具体 API
+- 便于实现复杂业务逻辑
+
+**缺点：**
+- ❌ 父组件代码臃肿
+- ❌ 每个使用处都要写提交逻辑
+- ❌ 违背了封装原则
+
+### 方案三：混合模式（最佳实践）
+
+提供默认处理，同时支持自定义：
+
+```vue
+<!-- 子组件 EditModal.vue -->
+<script setup lang="ts">
+interface Props {
+  // 自定义提交处理
+  customSubmit?: (values: any) => Promise<void>;
+  // API 配置
+  api?: {
+    create?: Function;
+    update?: Function;
+  };
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  api: () => ({
+    create: createApi,
+    update: updateApi
+  })
+});
+
+const emit = defineEmits(['success', 'register']);
+
+const handleSubmit = async () => {
+  try {
+    const values = await validate();
+    setModalProps({ confirmLoading: true });
+    
+    // 优先使用自定义提交
+    if (props.customSubmit) {
+      await props.customSubmit(values);
+    } else {
+      // 使用默认 API
+      if (values.id) {
+        await props.api.update?.(values);
+      } else {
+        await props.api.create?.(values);
+      }
+    }
+    
+    message.success('操作成功');
+    closeModal();
+    emit('success', values);
+  } finally {
+    setModalProps({ confirmLoading: false });
+  }
+};
+</script>
+```
+
+使用示例：
+
+```vue
+<!-- 简单场景：使用默认处理 -->
+<EditModal @register="registerModal" @success="reload" />
+
+<!-- 复杂场景：自定义处理 -->
+<EditModal 
+  @register="registerModal" 
+  :custom-submit="handleCustomSubmit"
+  @success="reload" 
+/>
+
+<script setup>
+const handleCustomSubmit = async (values) => {
+  // 自定义业务逻辑
+  await complexBusinessLogic(values);
+};
+</script>
+```
+
+## 进阶封装：使用 Hooks
+
+创建可复用的表单提交逻辑：
+
+```typescript
+// hooks/useFormSubmit.ts
+export function useFormSubmit(options: {
+  api: { create: Function; update: Function };
+  beforeSubmit?: (values: any) => any;
+  afterSubmit?: (result: any) => void;
+}) {
+  const loading = ref(false);
+  
+  const handleSubmit = async (values: any) => {
+    loading.value = true;
+    try {
+      // 提交前处理
+      const params = options.beforeSubmit?.(values) ?? values;
+      
+      // 执行提交
+      const result = params.id 
+        ? await options.api.update(params)
+        : await options.api.create(params);
+      
+      // 提交后处理
+      options.afterSubmit?.(result);
+      
+      return result;
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  return {
+    loading: readonly(loading),
+    handleSubmit
+  };
+}
+```
+
+在子组件中使用：
+
+```vue
+<script setup lang="ts">
+import { useFormSubmit } from '/@/hooks/useFormSubmit';
+
+const { loading, handleSubmit } = useFormSubmit({
+  api: { create: createApi, update: updateApi },
+  beforeSubmit: (values) => {
+    // 数据预处理
+    return transformData(values);
+  },
+  afterSubmit: () => {
+    closeModal();
+    emit('success');
+  }
+});
+</script>
+```
+
+## 最佳实践建议
+
+根据 vben admin 的架构理念，我推荐：
+
+### 1. 默认规则
+- **简单 CRUD**：子组件处理（方案一）
+- **复杂业务**：混合模式（方案三）
+- **特殊流程**：父组件处理（方案二）
+
+### 2. 判断标准
+
+```typescript
+// 适合子组件处理
+if (满足以下条件) {
+  - 标准 CRUD 操作
+  - 提交后仅需刷新列表
+  - 无复杂业务关联
+  - 组件需要多处复用
+}
+
+// 适合父组件处理
+if (满足以下条件) {
+  - 提交后有复杂流程
+  - 需要操作多个 API
+  - 涉及多个组件联动
+  - 业务逻辑特殊
+}
+```
+
+### 3. 实际示例
+
+```vue
+<!-- 可复用的业务组件 -->
+<template>
+  <BasicModal v-bind="$attrs" @register="registerModal" @ok="handleSubmit">
+    <BasicForm @register="registerForm" />
+  </BasicModal>
+</template>
+
+<script setup lang="ts">
+import { useMessage } from '/@/hooks/web/useMessage';
+import { useFormModal } from '/@/hooks/business/useFormModal';
+
+// 封装通用逻辑
+const { 
+  registerModal, 
+  registerForm, 
+  handleSubmit 
+} = useFormModal({
+  schemas: formSchemas,
+  api: {
+    create: createUserApi,
+    update: updateUserApi,
+    detail: getUserDetailApi
+  },
+  // 成功提示
+  successMessage: {
+    create: '创建成功',
+    update: '更新成功'
+  },
+  // 数据转换
+  transformData: (values) => ({
+    ...values,
+    roleIds: values.roles?.map(r => r.id)
+  })
+});
+</script>
+```
+
+总的来说，**优先让子组件自治**，这样能获得更好的封装性和复用性，只在确实需要父组件介入时才上提到父组件处理。
