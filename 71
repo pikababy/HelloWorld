@@ -713,3 +713,798 @@ const {
 ```
 
 总的来说，**优先让子组件自治**，这样能获得更好的封装性和复用性，只在确实需要父组件介入时才上提到父组件处理。
+
+
+详细说下Vue3中Hooks，它的使用场景，以及最佳实践
+
+## Vue3 Hooks（组合式函数）详解
+
+Vue3 的 Hooks 本质上是利用 Composition API 封装的可复用逻辑函数，类似于 React Hooks 的概念，但更贴合 Vue 的响应式系统。
+
+## 核心概念
+
+### 什么是 Vue3 Hooks？
+
+```typescript
+// 一个标准的 Vue3 Hook
+export function useCounter(initialValue = 0) {
+  const count = ref(initialValue);
+  
+  const increment = () => count.value++;
+  const decrement = () => count.value--;
+  const reset = () => count.value = initialValue;
+  
+  // 返回响应式状态和方法
+  return {
+    count: readonly(count), // 只读，防止外部直接修改
+    increment,
+    decrement,
+    reset
+  };
+}
+```
+
+### 命名约定
+- 以 `use` 开头，如 `useTable`、`useForm`、`useModal`
+- 使用驼峰命名法
+- 名称应该描述功能而非实现细节
+
+## 使用场景
+
+### 1. 状态逻辑复用
+
+```typescript
+// hooks/useUserInfo.ts
+export function useUserInfo() {
+  const userStore = useUserStore();
+  const router = useRouter();
+  
+  const userInfo = computed(() => userStore.getUserInfo);
+  const isAdmin = computed(() => userInfo.value?.role === 'admin');
+  
+  const logout = async () => {
+    await userStore.logout();
+    router.push('/login');
+  };
+  
+  return {
+    userInfo,
+    isAdmin,
+    logout
+  };
+}
+
+// 在多个组件中使用
+const { userInfo, isAdmin, logout } = useUserInfo();
+```
+
+### 2. 业务逻辑封装
+
+```typescript
+// hooks/useTableCrud.ts
+export function useTableCrud<T = any>(api: CrudApi) {
+  const loading = ref(false);
+  const dataSource = ref<T[]>([]);
+  const selectedRowKeys = ref<Key[]>([]);
+  
+  // 查询
+  const fetchData = async (params?: any) => {
+    loading.value = true;
+    try {
+      const { items, total } = await api.list(params);
+      dataSource.value = items;
+      return { items, total };
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  // 删除
+  const handleDelete = async (id: string) => {
+    await api.delete(id);
+    message.success('删除成功');
+    await fetchData();
+  };
+  
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (selectedRowKeys.value.length === 0) {
+      message.warning('请先选择要删除的数据');
+      return;
+    }
+    
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定删除选中的 ${selectedRowKeys.value.length} 条数据吗？`,
+      onOk: async () => {
+        await api.batchDelete(selectedRowKeys.value);
+        selectedRowKeys.value = [];
+        await fetchData();
+      }
+    });
+  };
+  
+  return {
+    loading: readonly(loading),
+    dataSource: readonly(dataSource),
+    selectedRowKeys,
+    fetchData,
+    handleDelete,
+    handleBatchDelete
+  };
+}
+```
+
+### 3. 副作用管理
+
+```typescript
+// hooks/useWebSocket.ts
+export function useWebSocket(url: string, options?: WebSocketOptions) {
+  const ws = ref<WebSocket | null>(null);
+  const data = ref<any>(null);
+  const error = ref<Error | null>(null);
+  const status = ref<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  
+  const connect = () => {
+    try {
+      ws.value = new WebSocket(url);
+      status.value = 'connecting';
+      
+      ws.value.onopen = () => {
+        status.value = 'connected';
+        options?.onOpen?.();
+      };
+      
+      ws.value.onmessage = (event) => {
+        data.value = JSON.parse(event.data);
+        options?.onMessage?.(data.value);
+      };
+      
+      ws.value.onerror = (err) => {
+        error.value = err as Error;
+        options?.onError?.(err);
+      };
+      
+      ws.value.onclose = () => {
+        status.value = 'disconnected';
+        options?.onClose?.();
+      };
+    } catch (err) {
+      error.value = err as Error;
+    }
+  };
+  
+  const disconnect = () => {
+    ws.value?.close();
+  };
+  
+  const send = (message: any) => {
+    if (ws.value?.readyState === WebSocket.OPEN) {
+      ws.value.send(JSON.stringify(message));
+    }
+  };
+  
+  // 组件卸载时自动断开
+  onUnmounted(() => {
+    disconnect();
+  });
+  
+  // 自动连接
+  if (options?.autoConnect !== false) {
+    onMounted(() => {
+      connect();
+    });
+  }
+  
+  return {
+    data: readonly(data),
+    error: readonly(error),
+    status: readonly(status),
+    connect,
+    disconnect,
+    send
+  };
+}
+```
+
+### 4. 表单处理
+
+```typescript
+// hooks/useFormValidation.ts
+export function useFormValidation<T extends Record<string, any>>(
+  initialValues: T,
+  rules: FormRules
+) {
+  const formData = reactive<T>({ ...initialValues });
+  const errors = reactive<Record<string, string>>({});
+  const touched = reactive<Record<string, boolean>>({});
+  
+  // 验证单个字段
+  const validateField = async (field: keyof T) => {
+    const rule = rules[field];
+    if (!rule) return true;
+    
+    try {
+      await rule.validate(formData[field]);
+      errors[field as string] = '';
+      return true;
+    } catch (err) {
+      errors[field as string] = err.message;
+      return false;
+    }
+  };
+  
+  // 验证所有字段
+  const validate = async () => {
+    const results = await Promise.all(
+      Object.keys(rules).map(field => validateField(field))
+    );
+    return results.every(result => result);
+  };
+  
+  // 重置表单
+  const reset = () => {
+    Object.assign(formData, initialValues);
+    Object.keys(errors).forEach(key => errors[key] = '');
+    Object.keys(touched).forEach(key => touched[key] = false);
+  };
+  
+  // 字段变化处理
+  const handleFieldChange = (field: keyof T, value: any) => {
+    formData[field] = value;
+    touched[field as string] = true;
+    
+    // 延迟验证
+    debounce(() => validateField(field), 300)();
+  };
+  
+  return {
+    formData,
+    errors: readonly(errors),
+    touched: readonly(touched),
+    validateField,
+    validate,
+    reset,
+    handleFieldChange
+  };
+}
+```
+
+## 最佳实践
+
+### 1. 目录结构组织
+
+```
+src/
+├── hooks/
+│   ├── web/                 # 通用 Web 相关
+│   │   ├── useTitle.ts
+│   │   ├── usePageLoading.ts
+│   │   └── useEventListener.ts
+│   ├── business/            # 业务相关
+│   │   ├── useUserManage.ts
+│   │   ├── useOrderProcess.ts
+│   │   └── useProductList.ts
+│   ├── component/           # 组件相关
+│   │   ├── useTable.ts
+│   │   ├── useForm.ts
+│   │   └── useModal.ts
+│   └── core/               # 核心功能
+│       ├── useRequest.ts
+│       ├── useAuth.ts
+│       └── usePermission.ts
+```
+
+### 2. 参数设计原则
+
+```typescript
+// ❌ 不好的设计：参数过多
+function useBadExample(
+  url: string,
+  method: string,
+  headers: object,
+  timeout: number,
+  retry: number,
+  cache: boolean
+) { }
+
+// ✅ 好的设计：使用配置对象
+interface UseRequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  timeout?: number;
+  retry?: number;
+  cache?: boolean;
+}
+
+function useRequest(url: string, options: UseRequestOptions = {}) {
+  const { 
+    method = 'GET',
+    timeout = 5000,
+    retry = 3,
+    cache = false 
+  } = options;
+  // ...
+}
+```
+
+### 3. 返回值设计
+
+```typescript
+// ✅ 返回值清晰、一致
+export function useAsyncData<T = any>(fetcher: () => Promise<T>) {
+  const data = ref<T | null>(null);
+  const error = ref<Error | null>(null);
+  const loading = ref(false);
+  
+  const execute = async (...args: any[]) => {
+    loading.value = true;
+    error.value = null;
+    
+    try {
+      data.value = await fetcher(...args);
+      return data.value;
+    } catch (err) {
+      error.value = err as Error;
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  // 返回统一格式
+  return {
+    // 状态 - 使用 readonly 防止外部修改
+    data: readonly(data),
+    error: readonly(error),
+    loading: readonly(loading),
+    
+    // 方法
+    execute,
+    
+    // 计算属性
+    isReady: computed(() => !loading.value && !error.value)
+  };
+}
+```
+
+### 4. 生命周期管理
+
+```typescript
+export function useIntersectionObserver(
+  target: Ref<Element | null>,
+  callback: IntersectionObserverCallback,
+  options?: IntersectionObserverInit
+) {
+  let observer: IntersectionObserver | null = null;
+  
+  const stop = () => {
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+  };
+  
+  const start = () => {
+    stop();
+    
+    if (target.value) {
+      observer = new IntersectionObserver(callback, options);
+      observer.observe(target.value);
+    }
+  };
+  
+  // 监听目标元素变化
+  watchEffect(() => {
+    start();
+  });
+  
+  // 组件卸载时清理
+  onUnmounted(() => {
+    stop();
+  });
+  
+  return {
+    stop,
+    start
+  };
+}
+```
+
+### 5. TypeScript 类型支持
+
+```typescript
+// 泛型支持
+export function useList<T extends Record<string, any>>(
+  fetcher: (params: any) => Promise<{ items: T[]; total: number }>
+) {
+  const list = ref<T[]>([]);
+  const total = ref(0);
+  const loading = ref(false);
+  
+  // 分页参数
+  const pagination = reactive({
+    current: 1,
+    pageSize: 10
+  });
+  
+  // 获取数据
+  const fetchList = async (params?: Partial<typeof pagination>) => {
+    loading.value = true;
+    try {
+      const mergedParams = { ...pagination, ...params };
+      const { items, total: totalCount } = await fetcher(mergedParams);
+      
+      list.value = items;
+      total.value = totalCount;
+      
+      if (params) {
+        Object.assign(pagination, params);
+      }
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  return {
+    list: readonly(list) as Readonly<Ref<T[]>>,
+    total: readonly(total),
+    loading: readonly(loading),
+    pagination: readonly(pagination),
+    fetchList,
+    refresh: () => fetchList(),
+    setPage: (page: number) => fetchList({ current: page })
+  };
+}
+```
+
+### 6. 组合多个 Hooks
+
+```typescript
+// hooks/useUserTable.ts
+export function useUserTable() {
+  // 组合多个 hooks
+  const { hasPermission } = usePermission();
+  const { openModal, register: registerModal } = useModal();
+  const { message } = useMessage();
+  
+  // 使用通用的表格 hook
+  const {
+    list,
+    loading,
+    pagination,
+    fetchList,
+    refresh
+  } = useList(getUserListApi);
+  
+  // 添加业务逻辑
+  const handleEdit = (record: User) => {
+    if (!hasPermission('user:edit')) {
+      message.error('无编辑权限');
+      return;
+    }
+    openModal(true, { record });
+  };
+  
+  const handleDelete = async (id: string) => {
+    if (!hasPermission('user:delete')) {
+      message.error('无删除权限');
+      return;
+    }
+    
+    await deleteUserApi(id);
+    message.success('删除成功');
+    refresh();
+  };
+  
+  // 初始化加载
+  onMounted(() => {
+    fetchList();
+  });
+  
+  return {
+    // 表格数据
+    dataSource: list,
+    loading,
+    pagination,
+    
+    // 操作方法
+    handleEdit,
+    handleDelete,
+    refresh,
+    
+    // Modal 注册
+    registerModal
+  };
+}
+```
+
+### 7. 错误处理
+
+```typescript
+export function useErrorHandler() {
+  const errors = ref<Error[]>([]);
+  
+  const handleError = (error: Error, context?: string) => {
+    console.error(`Error in ${context || 'unknown context'}:`, error);
+    errors.value.push(error);
+    
+    // 根据错误类型处理
+    if (error.name === 'NetworkError') {
+      message.error('网络连接失败，请检查网络');
+    } else if (error.name === 'ValidationError') {
+      message.warning(error.message);
+    } else {
+      message.error('操作失败：' + error.message);
+    }
+  };
+  
+  const clearErrors = () => {
+    errors.value = [];
+  };
+  
+  // 包装异步函数，自动处理错误
+  const wrapAsync = <T extends (...args: any[]) => Promise<any>>(
+    fn: T,
+    context?: string
+  ): T => {
+    return (async (...args: Parameters<T>) => {
+      try {
+        return await fn(...args);
+      } catch (error) {
+        handleError(error as Error, context);
+        throw error;
+      }
+    }) as T;
+  };
+  
+  return {
+    errors: readonly(errors),
+    handleError,
+    clearErrors,
+    wrapAsync
+  };
+}
+```
+
+## 实战示例：完整的数据管理 Hook
+
+```typescript
+// hooks/useDataManager.ts
+interface UseDataManagerOptions<T> {
+  // API 配置
+  api: {
+    list: (params: any) => Promise<{ items: T[]; total: number }>;
+    create?: (data: T) => Promise<T>;
+    update?: (id: string, data: T) => Promise<T>;
+    delete?: (id: string) => Promise<void>;
+    batchDelete?: (ids: string[]) => Promise<void>;
+  };
+  
+  // 选项
+  immediate?: boolean;  // 是否立即加载
+  defaultPageSize?: number;
+  
+  // 回调
+  onSuccess?: (action: string) => void;
+  onError?: (error: Error) => void;
+}
+
+export function useDataManager<T extends { id: string }>(
+  options: UseDataManagerOptions<T>
+) {
+  const { api, immediate = true, defaultPageSize = 10 } = options;
+  
+  // 状态
+  const list = ref<T[]>([]);
+  const total = ref(0);
+  const loading = ref(false);
+  const creating = ref(false);
+  const updating = ref(false);
+  const deleting = ref(false);
+  const selectedRowKeys = ref<string[]>([]);
+  
+  // 分页
+  const pagination = reactive({
+    current: 1,
+    pageSize: defaultPageSize,
+    showSizeChanger: true,
+    showQuickJumper: true,
+    showTotal: (total: number) => `共 ${total} 条`
+  });
+  
+  // 搜索参数
+  const searchParams = ref<Record<string, any>>({});
+  
+  // 获取列表
+  const fetchList = async (params?: any) => {
+    loading.value = true;
+    try {
+      const { items, total: totalCount } = await api.list({
+        ...searchParams.value,
+        ...params,
+        page: pagination.current,
+        pageSize: pagination.pageSize
+      });
+      
+      list.value = items;
+      total.value = totalCount;
+      
+      options.onSuccess?.('fetch');
+    } catch (error) {
+      options.onError?.(error as Error);
+      throw error;
+    } finally {
+      loading.value = false;
+    }
+  };
+  
+  // 创建
+  const create = async (data: Omit<T, 'id'>) => {
+    if (!api.create) {
+      throw new Error('Create API not provided');
+    }
+    
+    creating.value = true;
+    try {
+      const result = await api.create(data as T);
+      await fetchList();
+      options.onSuccess?.('create');
+      return result;
+    } catch (error) {
+      options.onError?.(error as Error);
+      throw error;
+    } finally {
+      creating.value = false;
+    }
+  };
+  
+  // 更新
+  const update = async (id: string, data: Partial<T>) => {
+    if (!api.update) {
+      throw new Error('Update API not provided');
+    }
+    
+    updating.value = true;
+    try {
+      const result = await api.update(id, data as T);
+      await fetchList();
+      options.onSuccess?.('update');
+      return result;
+    } catch (error) {
+      options.onError?.(error as Error);
+      throw error;
+    } finally {
+      updating.value = false;
+    }
+  };
+  
+  // 删除
+  const remove = async (id: string) => {
+    if (!api.delete) {
+      throw new Error('Delete API not provided');
+    }
+    
+    deleting.value = true;
+    try {
+      await api.delete(id);
+      
+      // 如果删除后当前页没有数据，回到上一页
+      if (list.value.length === 1 && pagination.current > 1) {
+        pagination.current--;
+      }
+      
+      await fetchList();
+      options.onSuccess?.('delete');
+    } catch (error) {
+      options.onError?.(error as Error);
+      throw error;
+    } finally {
+      deleting.value = false;
+    }
+  };
+  
+  // 批量删除
+  const batchRemove = async (ids?: string[]) => {
+    const targetIds = ids || selectedRowKeys.value;
+    
+    if (targetIds.length === 0) {
+      message.warning('请先选择要删除的数据');
+      return;
+    }
+    
+    if (!api.batchDelete) {
+      // 如果没有批量删除接口，逐个删除
+      for (const id of targetIds) {
+        await remove(id);
+      }
+    } else {
+      deleting.value = true;
+      try {
+        await api.batchDelete(targetIds);
+        selectedRowKeys.value = [];
+        await fetchList();
+        options.onSuccess?.('batchDelete');
+      } catch (error) {
+        options.onError?.(error as Error);
+        throw error;
+      } finally {
+        deleting.value = false;
+      }
+    }
+  };
+  
+  // 搜索
+  const search = (params: Record<string, any>) => {
+    searchParams.value = params;
+    pagination.current = 1;
+    return fetchList();
+  };
+  
+  // 重置
+  const reset = () => {
+    searchParams.value = {};
+    pagination.current = 1;
+    return fetchList();
+  };
+  
+  // 分页变化
+  const handleTableChange = (pag: any) => {
+    pagination.current = pag.current;
+    pagination.pageSize = pag.pageSize;
+    return fetchList();
+  };
+  
+  // 选择变化
+  const handleSelectChange = (keys: string[]) => {
+    selectedRowKeys.value = keys;
+  };
+  
+  // 立即加载
+  if (immediate) {
+    onMounted(() => fetchList());
+  }
+  
+  return {
+    // 状态
+    list: readonly(list),
+    total: readonly(total),
+    loading: readonly(loading),
+    creating: readonly(creating),
+    updating: readonly(updating),
+    deleting: readonly(deleting),
+    
+    // 分页
+    pagination,
+    
+    // 选择
+    selectedRowKeys,
+    rowSelection: computed(() => ({
+      selectedRowKeys: selectedRowKeys.value,
+      onChange: handleSelectChange
+    })),
+    
+    // 方法
+    fetchList,
+    create,
+    update,
+    remove,
+    batchRemove,
+    search,
+    reset,
+    refresh: fetchList,
+    handleTableChange
+  };
+}
+```
+
+## 总结
+
+Vue3 Hooks 的核心价值在于：
+1. **逻辑复用**：相同的业务逻辑可以在多个组件间共享
+2. **关注点分离**：将复杂的逻辑从组件中抽离
+3. **类型安全**：配合 TypeScript 提供完整的类型支持
+4. **测试友好**：纯函数更容易测试
+5. **组合灵活**：可以灵活组合多个 Hooks
+
+遵循这些最佳实践，可以让你的 Vue3 项目更加清晰、可维护和可扩展。
