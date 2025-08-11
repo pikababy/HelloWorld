@@ -1,0 +1,318 @@
+<template>
+  <div class="file-upload-container">
+    <div class="upload-area" @click="triggerFileInput" @dragover.prevent @drop.prevent="handleDrop">
+      <input
+        ref="fileInputRef"
+        type="file"
+        style="display: none"
+        @change="handleFileSelect"
+        :accept="acceptTypes"
+      />
+      
+      <div class="upload-content">
+        <div class="upload-icon">
+          <Icon icon="material-symbols:cloud-upload-outline" size="48" />
+        </div>
+        
+        <div class="upload-text">
+          <p class="primary-text">点击上传文件</p>
+          <p class="secondary-text">或将文件拖拽到此处</p>
+          <p class="hint-text" v-if="acceptTypes">
+            支持格式: {{ acceptTypes }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 上传进度 -->
+    <div v-if="uploading" class="upload-progress">
+      <div class="progress-info">
+        <span>{{ selectedFile?.name }}</span>
+        <span>{{ uploadProgress }}%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" :style="{ width: uploadProgress + '%' }"></div>
+      </div>
+    </div>
+
+    <!-- 上传成功信息 -->
+    <div v-if="uploadSuccess" class="upload-success">
+      <Icon icon="material-symbols:check-circle-outline" color="#52c41a" size="16" />
+      <span>{{ selectedFile?.name }} 上传成功</span>
+    </div>
+
+    <!-- 上传失败信息 -->
+    <div v-if="uploadError" class="upload-error">
+      <Icon icon="material-symbols:error-outline" color="#ff4d4f" size="16" />
+      <span>{{ uploadError }}</span>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="upload-actions" v-if="selectedFile && !uploading">
+      <Button @click="handleUpload" type="primary" :loading="uploading">
+        确认上传
+      </Button>
+      <Button @click="handleCancel" style="margin-left: 8px">
+        取消
+      </Button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { Button, message } from 'ant-design-vue'
+import { Icon } from '@/components/Icon'
+import { uploadFile } from '@/api/upload' // 需要创建对应的API文件
+
+interface Props {
+  acceptTypes?: string
+  maxSize?: number // MB
+  disabled?: boolean
+}
+
+interface Emits {
+  (e: 'success', data: any): void
+  (e: 'error', error: string): void
+  (e: 'progress', progress: number): void
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  acceptTypes: '',
+  maxSize: 10,
+  disabled: false
+})
+
+const emit = defineEmits<Emits>()
+
+// 响应式数据
+const fileInputRef = ref<HTMLInputElement>()
+const selectedFile = ref<File | null>(null)
+const uploading = ref(false)
+const uploadProgress = ref(0)
+const uploadSuccess = ref(false)
+const uploadError = ref('')
+
+// 触发文件选择
+const triggerFileInput = () => {
+  if (props.disabled || uploading.value) return
+  fileInputRef.value?.click()
+}
+
+// 处理文件选择
+const handleFileSelect = (event: Event) => {
+  const target = event.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (file) {
+    validateAndSetFile(file)
+  }
+}
+
+// 处理拖拽上传
+const handleDrop = (event: DragEvent) => {
+  if (props.disabled || uploading.value) return
+  
+  const file = event.dataTransfer?.files[0]
+  if (file) {
+    validateAndSetFile(file)
+  }
+}
+
+// 验证并设置文件
+const validateAndSetFile = (file: File) => {
+  // 重置状态
+  uploadSuccess.value = false
+  uploadError.value = ''
+  
+  // 验证文件大小
+  if (file.size > props.maxSize * 1024 * 1024) {
+    uploadError.value = `文件大小不能超过 ${props.maxSize}MB`
+    return
+  }
+  
+  // 验证文件类型
+  if (props.acceptTypes) {
+    const allowedTypes = props.acceptTypes.split(',').map(type => type.trim())
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase()
+    const mimeType = file.type
+    
+    const isValidType = allowedTypes.some(type => {
+      return type === fileExtension || type === mimeType || 
+             (type.includes('*') && mimeType.startsWith(type.replace('*', '')))
+    })
+    
+    if (!isValidType) {
+      uploadError.value = `不支持的文件格式: ${fileExtension}`
+      return
+    }
+  }
+  
+  selectedFile.value = file
+}
+
+// 处理文件上传
+const handleUpload = async () => {
+  if (!selectedFile.value) return
+  
+  uploading.value = true
+  uploadProgress.value = 0
+  uploadError.value = ''
+  
+  try {
+    const formData = new FormData()
+    formData.append('file', selectedFile.value)
+    
+    const response = await uploadFile(formData, {
+      onUploadProgress: (progressEvent: any) => {
+        if (progressEvent.lengthComputable) {
+          const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          uploadProgress.value = progress
+          emit('progress', progress)
+        }
+      }
+    })
+    
+    uploadSuccess.value = true
+    message.success('文件上传成功')
+    emit('success', response.data)
+    
+    // 3秒后重置状态
+    setTimeout(() => {
+      handleCancel()
+    }, 3000)
+    
+  } catch (error: any) {
+    const errorMsg = error?.response?.data?.message || error?.message || '上传失败'
+    uploadError.value = errorMsg
+    message.error(errorMsg)
+    emit('error', errorMsg)
+  } finally {
+    uploading.value = false
+  }
+}
+
+// 取消上传
+const handleCancel = () => {
+  selectedFile.value = null
+  uploading.value = false
+  uploadProgress.value = 0
+  uploadSuccess.value = false
+  uploadError.value = ''
+  
+  if (fileInputRef.value) {
+    fileInputRef.value.value = ''
+  }
+}
+</script>
+
+<style scoped lang="less">
+.file-upload-container {
+  width: 100%;
+  
+  .upload-area {
+    border: 2px dashed #d9d9d9;
+    border-radius: 8px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: #fafafa;
+    
+    &:hover {
+      border-color: #1890ff;
+      background-color: #f0f8ff;
+    }
+    
+    .upload-content {
+      .upload-icon {
+        margin-bottom: 16px;
+        color: #8c8c8c;
+      }
+      
+      .upload-text {
+        .primary-text {
+          font-size: 16px;
+          color: #262626;
+          margin-bottom: 4px;
+        }
+        
+        .secondary-text {
+          font-size: 14px;
+          color: #8c8c8c;
+          margin-bottom: 8px;
+        }
+        
+        .hint-text {
+          font-size: 12px;
+          color: #bfbfbf;
+          margin: 0;
+        }
+      }
+    }
+  }
+  
+  .upload-progress {
+    margin-top: 16px;
+    
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 14px;
+      color: #595959;
+    }
+    
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background-color: #f5f5f5;
+      border-radius: 3px;
+      overflow: hidden;
+      
+      .progress-fill {
+        height: 100%;
+        background-color: #1890ff;
+        transition: width 0.3s ease;
+      }
+    }
+  }
+  
+  .upload-success {
+    display: flex;
+    align-items: center;
+    margin-top: 16px;
+    padding: 8px 12px;
+    background-color: #f6ffed;
+    border: 1px solid #b7eb8f;
+    border-radius: 4px;
+    color: #52c41a;
+    font-size: 14px;
+    
+    span {
+      margin-left: 8px;
+    }
+  }
+  
+  .upload-error {
+    display: flex;
+    align-items: center;
+    margin-top: 16px;
+    padding: 8px 12px;
+    background-color: #fff2f0;
+    border: 1px solid #ffccc7;
+    border-radius: 4px;
+    color: #ff4d4f;
+    font-size: 14px;
+    
+    span {
+      margin-left: 8px;
+    }
+  }
+  
+  .upload-actions {
+    margin-top: 16px;
+    text-align: center;
+  }
+}
+</style>
