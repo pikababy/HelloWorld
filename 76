@@ -1,0 +1,251 @@
+// api/flowTemplate.ts - API接口定义
+import { defHttp } from '/@/utils/http/axios';
+
+export interface FlowTemplateItem {
+  id: number;
+  flowType: string;
+  flowHandleType: string;
+  tableName: string;
+  columnName: string;
+  columnComment: string;
+  createTime: string;
+  creator: string;
+  creatorId: string;
+  dataType: string;
+  refColumnName?: string;
+}
+
+/**
+ * 获取流程模板字段配置
+ */
+export function getFlowTemplateFields(params?: any) {
+  return defHttp.post<FlowTemplateItem[]>({
+    url: '/api/admin/flow-template/search',
+    params: {
+      ...params,
+      cacheBuster: Date.now()
+    }
+  });
+}
+
+// utils/excel.ts - Excel工具类
+import * as XLSX from 'xlsx';
+
+/**
+ * 导出Excel文件
+ */
+export function exportExcel(data: any[], fileName: string, sheetName = 'Sheet1') {
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  XLSX.writeFile(wb, `${fileName}.xlsx`);
+}
+
+/**
+ * 根据字段配置生成Excel模板
+ */
+export function generateExcelTemplate(fields: FlowTemplateItem[], fileName: string) {
+  // 构建表头数据
+  const headers: { [key: string]: string } = {};
+  
+  fields.forEach(field => {
+    // 使用columnComment作为表头显示名称，columnName作为字段名
+    headers[field.columnName] = field.columnComment || field.columnName;
+  });
+
+  // 创建一个包含表头的空数据行
+  const templateData = [headers];
+  
+  // 创建工作簿
+  const ws = XLSX.utils.json_to_sheet(templateData, { 
+    header: Object.keys(headers),
+    skipHeader: false 
+  });
+  
+  // 设置列宽
+  const colWidths = Object.keys(headers).map(() => ({ wch: 20 }));
+  ws['!cols'] = colWidths;
+  
+  // 设置表头样式（如果需要）
+  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1');
+  for (let col = range.s.c; col <= range.e.c; col++) {
+    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+    if (!ws[cellAddress]) continue;
+    
+    // 可以在这里设置单元格样式
+    ws[cellAddress].s = {
+      font: { bold: true },
+      fill: { fgColor: { rgb: "E0E0E0" } }
+    };
+  }
+  
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '模板');
+  XLSX.writeFile(wb, `${fileName}.xlsx`);
+}
+
+// hooks/useTemplateDownload.ts - 模板下载Hook
+import { ref } from 'vue';
+import { message } from 'ant-design-vue';
+import { getFlowTemplateFields } from '/@/api/flowTemplate';
+import { generateExcelTemplate } from '/@/utils/excel';
+
+export function useTemplateDownload() {
+  const loading = ref(false);
+
+  /**
+   * 下载模板
+   */
+  async function downloadTemplate(flowType?: string) {
+    try {
+      loading.value = true;
+      
+      // 获取字段配置
+      const params = flowType ? { flowType } : {};
+      const fields = await getFlowTemplateFields(params);
+      
+      if (!fields || fields.length === 0) {
+        message.warning('暂无模板字段配置');
+        return;
+      }
+
+      // 按照某种顺序排序字段（可根据需要调整）
+      const sortedFields = fields.sort((a, b) => {
+        // 可以根据id或其他字段排序
+        return a.id - b.id;
+      });
+
+      // 生成并下载Excel模板
+      const fileName = `${flowType || '流程'}模板_${new Date().getTime()}`;
+      generateExcelTemplate(sortedFields, fileName);
+      
+      message.success('模板下载成功！');
+    } catch (error) {
+      console.error('下载模板失败：', error);
+      message.error('下载模板失败，请重试');
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  return {
+    loading,
+    downloadTemplate
+  };
+}
+
+// views/FlowTemplate/index.vue - 页面组件
+<template>
+  <div class="flow-template-page">
+    <div class="mb-4">
+      <a-button 
+        type="primary" 
+        :loading="loading"
+        @click="handleDownloadTemplate"
+      >
+        <template #icon>
+          <DownloadOutlined />
+        </template>
+        下载模板
+      </a-button>
+      
+      <a-button 
+        type="default" 
+        class="ml-2"
+        :loading="loading"
+        @click="handleDownloadTemplate('应用资产')"
+      >
+        下载应用资产模板
+      </a-button>
+    </div>
+    
+    <!-- 其他页面内容 -->
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { DownloadOutlined } from '@ant-design/icons-vue';
+import { useTemplateDownload } from '/@/hooks/useTemplateDownload';
+
+const { loading, downloadTemplate } = useTemplateDownload();
+
+// 下载通用模板
+function handleDownloadTemplate(flowType?: string) {
+  downloadTemplate(flowType);
+}
+</script>
+
+// 如果需要更复杂的Excel样式，可以扩展excel工具类
+export class ExcelTemplateGenerator {
+  private fields: FlowTemplateItem[] = [];
+  private fileName = '';
+
+  constructor(fields: FlowTemplateItem[], fileName: string) {
+    this.fields = fields;
+    this.fileName = fileName;
+  }
+
+  /**
+   * 生成带样式的Excel模板
+   */
+  generateWithStyles() {
+    const headers: { [key: string]: string } = {};
+    
+    this.fields.forEach(field => {
+      headers[field.columnName] = field.columnComment || field.columnName;
+    });
+
+    // 创建工作簿
+    const wb = XLSX.utils.book_new();
+    
+    // 创建工作表
+    const wsData = [
+      Object.values(headers), // 表头行
+      ...Array(5).fill(null).map(() => Array(Object.keys(headers).length).fill('')) // 5行空数据作为示例
+    ];
+    
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    
+    // 设置列宽
+    ws['!cols'] = Object.keys(headers).map(() => ({ wch: 25 }));
+    
+    // 设置表头样式
+    const headerRange = { s: { c: 0, r: 0 }, e: { c: Object.keys(headers).length - 1, r: 0 } };
+    for (let col = headerRange.s.c; col <= headerRange.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      if (ws[cellAddress]) {
+        ws[cellAddress].s = {
+          font: { bold: true, color: { rgb: "FFFFFF" } },
+          fill: { fgColor: { rgb: "4472C4" } },
+          alignment: { horizontal: "center", vertical: "center" },
+          border: {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" }
+          }
+        };
+      }
+    }
+    
+    // 添加数据验证（如果需要）
+    this.addDataValidation(ws);
+    
+    XLSX.utils.book_append_sheet(wb, ws, '模板');
+    XLSX.writeFile(wb, `${this.fileName}.xlsx`);
+  }
+
+  /**
+   * 添加数据验证
+   */
+  private addDataValidation(ws: XLSX.WorkSheet) {
+    // 可以根据字段类型添加下拉列表等验证
+    this.fields.forEach((field, index) => {
+      if (field.columnName === 'flowType') {
+        // 为流程类型字段添加下拉验证
+        const validationRange = `${XLSX.utils.encode_col(index)}2:${XLSX.utils.encode_col(index)}1000`;
+        // 这里可以添加具体的验证逻辑
+      }
+    });
+  }
+}
