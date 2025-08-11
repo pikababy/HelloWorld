@@ -1,0 +1,202 @@
+<template>
+  <PageWrapper title="文件上传示例">
+    <div class="upload-demo-container">
+      <Card title="单文件上传" class="upload-card">
+        <FileUpload
+          :acceptTypes="'.xlsx,.xls,.csv'"
+          :maxSize="10"
+          @success="handleUploadSuccess"
+          @error="handleUploadError"
+          @progress="handleUploadProgress"
+        />
+      </Card>
+
+      <Card title="图片上传" class="upload-card">
+        <FileUpload
+          :acceptTypes="'image/*'"
+          :maxSize="5"
+          @success="handleImageUploadSuccess"
+          @error="handleUploadError"
+          @progress="handleUploadProgress"
+        />
+      </Card>
+
+      <Card title="文档上传" class="upload-card">
+        <FileUpload
+          :acceptTypes="'.pdf,.doc,.docx,.txt'"
+          :maxSize="20"
+          @success="handleDocUploadSuccess"
+          @error="handleUploadError"
+          @progress="handleUploadProgress"
+        />
+      </Card>
+
+      <!-- 上传结果展示 -->
+      <Card title="上传记录" class="upload-card" v-if="uploadResults.length > 0">
+        <div class="upload-results">
+          <div 
+            v-for="(result, index) in uploadResults" 
+            :key="index"
+            class="result-item"
+          >
+            <div class="result-info">
+              <Icon 
+                :icon="getFileIcon(result.type)" 
+                size="20" 
+                :color="result.success ? '#52c41a' : '#ff4d4f'"
+              />
+              <span class="filename">{{ result.filename }}</span>
+              <Tag :color="result.success ? 'success' : 'error'">
+                {{ result.success ? '成功' : '失败' }}
+              </Tag>
+            </div>
+            <div class="result-time">
+              {{ formatTime(result.time) }}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </div>
+  </PageWrapper>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import { Card, Tag, message } from 'ant-design-vue'
+import { PageWrapper } from '@/components/Page'
+import { Icon } from '@/components/Icon'
+import FileUpload from './components/FileUpload.vue'
+import dayjs from 'dayjs'
+
+interface UploadResult {
+  filename: string
+  type: string
+  success: boolean
+  time: Date
+  data?: any
+  error?: string
+}
+
+const uploadResults = ref<UploadResult[]>()
+
+// 处理文件上传成功
+const handleUploadSuccess = (data: any) => {
+  console.log('上传成功:', data)
+  
+  uploadResults.value.unshift({
+    filename: data.filename || '未知文件',
+    type: 'excel',
+    success: true,
+    time: new Date(),
+    data
+  })
+  
+  message.success('Excel文件上传成功！')
+}
+
+// 处理图片上传成功
+const handleImageUploadSuccess = (data: any) => {
+  console.log('图片上传成功:', data)
+  
+  uploadResults.value.unshift({
+    filename: data.filename || '未知图片',
+    type: 'image',
+    success: true,
+    time: new Date(),
+    data
+  })
+  
+  message.success('图片上传成功！')
+}
+
+// 处理文档上传成功
+const handleDocUploadSuccess = (data: any) => {
+  console.log('文档上传成功:', data)
+  
+  uploadResults.value.unshift({
+    filename: data.filename || '未知文档',
+    type: 'document',
+    success: true,
+    time: new Date(),
+    data
+  })
+  
+  message.success('文档上传成功！')
+}
+
+// 处理上传失败
+const handleUploadError = (error: string) => {
+  console.error('上传失败:', error)
+  
+  uploadResults.value.unshift({
+    filename: '上传失败的文件',
+    type: 'unknown',
+    success: false,
+    time: new Date(),
+    error
+  })
+}
+
+// 处理上传进度
+const handleUploadProgress = (progress: number) => {
+  console.log('上传进度:', progress + '%')
+}
+
+// 获取文件图标
+const getFileIcon = (type: string) => {
+  const iconMap = {
+    excel: 'vscode-icons:file-type-excel2',
+    image: 'vscode-icons:file-type-image',
+    document: 'vscode-icons:file-type-pdf2',
+    unknown: 'vscode-icons:default-file'
+  }
+  return iconMap[type] || iconMap.unknown
+}
+
+// 格式化时间
+const formatTime = (time: Date) => {
+  return dayjs(time).format('YYYY-MM-DD HH:mm:ss')
+}
+</script>
+
+<style scoped lang="less">
+.upload-demo-container {
+  .upload-card {
+    margin-bottom: 24px;
+    
+    &:last-child {
+      margin-bottom: 0;
+    }
+  }
+  
+  .upload-results {
+    .result-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid #f0f0f0;
+      
+      &:last-child {
+        border-bottom: none;
+      }
+      
+      .result-info {
+        display: flex;
+        align-items: center;
+        
+        .filename {
+          margin: 0 12px;
+          font-size: 14px;
+          color: #262626;
+        }
+      }
+      
+      .result-time {
+        font-size: 12px;
+        color: #8c8c8c;
+      }
+    }
+  }
+}
+</style>
