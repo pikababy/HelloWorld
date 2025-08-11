@@ -1,0 +1,73 @@
+import { defHttp } from '@/utils/http/axios'
+import type { AxiosProgressEvent } from 'axios'
+
+export interface UploadFileParams {
+  file: File | Blob
+  filename?: string
+  [key: string]: any
+}
+
+export interface UploadFileResult {
+  code: number
+  message: string
+  data: {
+    url?: string
+    path?: string
+    filename?: string
+    size?: number
+    [key: string]: any
+  }
+}
+
+export interface UploadOptions {
+  onUploadProgress?: (progressEvent: AxiosProgressEvent) => void
+}
+
+/**
+ * 上传文件
+ * @param params FormData 或包含文件的参数对象
+ * @param options 上传选项，包含进度回调
+ */
+export function uploadFile(
+  params: FormData | UploadFileParams,
+  options?: UploadOptions
+) {
+  return defHttp.post<UploadFileResult>(
+    {
+      url: '/api/asset/asset-app/bulk-import',
+      params,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      timeout: 300000, // 5分钟超时
+      onUploadProgress: options?.onUploadProgress,
+    },
+    {
+      // 不使用错误消息提示，由组件自己处理
+      errorMessageMode: 'none',
+    }
+  )
+}
+
+/**
+ * 获取文件上传配置
+ */
+export function getUploadConfig() {
+  return defHttp.get<{
+    maxSize: number
+    allowedTypes: string[]
+    uploadUrl: string
+  }>({
+    url: '/api/upload/config',
+  })
+}
+
+/**
+ * 删除已上传的文件
+ * @param fileId 文件ID或路径
+ */
+export function deleteUploadedFile(fileId: string) {
+  return defHttp.delete({
+    url: `/api/upload/file/${fileId}`,
+  })
+}
