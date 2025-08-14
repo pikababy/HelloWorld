@@ -1,0 +1,36 @@
+<template>
+  <div>
+    <!-- 触发批量导入的按钮 -->
+    <Button type="primary" @click="openBatchImport">
+      批量导入
+    </Button>
+    
+    <!-- 批量导入弹窗组件 -->
+    <BatchImportModal @register="registerModal" @success="handleImportSuccess" />
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { Button } from 'ant-design-vue';
+import { useModal } from '/@/components/Modal';
+import BatchImportModal from './BatchImportModal.vue';
+
+// 注册弹窗
+const [registerModal, { openModal }] = useModal();
+
+// 打开批量导入弹窗
+const openBatchImport = () => {
+  openModal(true, {
+    // 可以传入初始数据
+    // assetId: '1',
+    // ownerId: '2',
+  });
+};
+
+// 导入成功回调
+const handleImportSuccess = () => {
+  console.log('批量导入成功');
+  // 刷新列表或其他操作
+  // refreshTable();
+};
+</script>
