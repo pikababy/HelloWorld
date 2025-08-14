@@ -1,0 +1,533 @@
+<template>
+  <BasicModal
+    v-bind="$attrs"
+    @register="registerModal"
+    :title="modalTitle"
+    :width="800"
+    @ok="handleSubmit"
+    :okText="'导入'"
+    :cancelText="'取消'"
+    :maskClosable="false"
+    :keyboard="false"
+  >
+    <BasicForm @register="registerForm">
+      <template #fileName="{ model, field }">
+        <div class="flex items-center">
+          <Input
+            v-model:value="model[field]"
+            placeholder="请选择文件"
+            :disabled="true"
+            class="flex-1"
+          />
+          <Button
+            type="primary"
+            class="ml-2"
+            @click="handleSelectFile"
+            :icon="h(PlusOutlined)"
+          />
+        </div>
+      </template>
+
+      <template #fileList>
+        <div class="file-list-wrapper">
+          <!-- 下载模板按钮 -->
+          <div class="mb-2 text-right">
+            <Button 
+              type="link" 
+              size="small" 
+              @click="handleDownloadTemplate"
+              :loading="downloadLoading"
+            >
+              <DownloadOutlined /> 下载导入模板
+            </Button>
+          </div>
+          
+          <!-- 文件列表表格 -->
+          <div class="file-list-container">
+            <Table
+              :columns="fileColumns"
+              :dataSource="fileList"
+              :pagination="false"
+              :scroll="{ y: 150 }"
+              size="small"
+              :locale="{ emptyText: '请选择要上传的文件' }"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'action'">
+                  <Space>
+                    <Button 
+                      type="link" 
+                      danger 
+                      size="small" 
+                      @click="handleRemoveFile(record)"
+                    >
+                      删除
+                    </Button>
+                  </Space>
+                </template>
+                <template v-else-if="column.key === 'size'">
+                  {{ formatFileSize(record.size) }}
+                </template>
+                <template v-else-if="column.key === 'status'">
+                  <Tag :color="getStatusColor(record.status)">
+                    {{ getStatusText(record.status) }}
+                  </Tag>
+                </template>
+              </template>
+            </Table>
+            
+            <!-- 隐藏的上传组件 -->
+            <Upload
+              v-show="false"
+              ref="uploadRef"
+              :showUploadList="false"
+              :beforeUpload="beforeUpload"
+              :customRequest="customUpload"
+              accept=".xlsx,.xls"
+              :multiple="false"
+            >
+              <Button ref="uploadBtnRef">选择文件</Button>
+            </Upload>
+          </div>
+          
+          <!-- 提示信息 -->
+          <div class="mt-2">
+            <Alert type="info" show-icon>
+              <template #message>
+                <div class="text-xs">
+                  <div>1. 仅支持Excel文件格式（.xlsx, .xls）</div>
+                  <div>2. 文件大小不超过10MB</div>
+                  <div>3. 每次只能上传一个文件，重新上传会覆盖之前的文件</div>
+                </div>
+              </template>
+            </Alert>
+          </div>
+        </div>
+      </template>
+    </BasicForm>
+  </BasicModal>
+</template>
+
+<script lang="ts" setup>
+import { ref, h, reactive, onMounted } from 'vue';
+import { BasicModal, useModalInner } from '/@/components/Modal';
+import { BasicForm, useForm } from '/@/components/Form';
+import { 
+  Input, 
+  Button, 
+  Upload, 
+  Table, 
+  Space, 
+  Tag, 
+  Alert,
+  message 
+} from 'ant-design-vue';
+import { 
+  PlusOutlined, 
+  DownloadOutlined 
+} from '@ant-design/icons-vue';
+import type { UploadFile } from 'ant-design-vue/es/upload/interface';
+import { 
+  batchImportApi, 
+  downloadTemplateApi, 
+  getAssetListApi, 
+  getOwnerListApi,
+  downloadFile 
+} from './batchImportApi';
+
+// 定义文件状态枚举
+enum FileStatus {
+  READY = 'ready',
+  UPLOADING = 'uploading',
+  SUCCESS = 'success',
+  ERROR = 'error',
+}
+
+// 定义文件列表项接口
+interface FileItem {
+  uid: string;
+  name: string;
+  size: number;
+  file: File;
+  status: FileStatus;
+  percent?: number;
+}
+
+const emit = defineEmits(['success', 'register']);
+
+const modalTitle = ref('批量导入');
+const uploadRef = ref();
+const uploadBtnRef = ref();
+const fileList = ref<FileItem[]>([]);
+const downloadLoading = ref(false);
+const assetOptions = ref<Array<{ label: string; value: string }>>([]);
+const ownerOptions = ref<Array<{ label: string; value: string }>>([]);
+
+// 文件列表表格列配置
+const fileColumns = [
+  {
+    title: '文件名',
+    dataIndex: 'name',
+    key: 'name',
+    width: '50%',
+    ellipsis: true,
+  },
+  {
+    title: '大小',
+    dataIndex: 'size',
+    key: 'size',
+    width: '20%',
+  },
+  {
+    title: '状态',
+    dataIndex: 'status',
+    key: 'status',
+    width: '15%',
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: '15%',
+  },
+];
+
+// 表单配置
+const [registerForm, { validate, resetFields, setFieldsValue, updateSchema }] = useForm({
+  labelWidth: 120,
+  schemas: [
+    {
+      field: 'fileName',
+      label: '文件名',
+      component: 'Input',
+      slot: 'fileName',
+      required: true,
+      rules: [
+        {
+          required: true,
+          message: '请选择要导入的文件',
+          trigger: 'change',
+        },
+      ],
+      colProps: { span: 24 },
+    },
+    {
+      field: 'assetId',
+      label: '应用资产',
+      component: 'Select',
+      required: true,
+      componentProps: {
+        placeholder: '请选择资产',
+        showSearch: true,
+        filterOption: (input: string, option: any) => {
+          return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+        },
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'ownerId',
+      label: '属主',
+      component: 'Select',
+      required: true,
+      componentProps: {
+        placeholder: '请选择属主',
+        showSearch: true,
+        filterOption: (input: string, option: any) => {
+          return option.label.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+        },
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'repairDeadline',
+      label: '修复期限',
+      component: 'DatePicker',
+      componentProps: {
+        style: { width: '100%' },
+        format: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DD',
+        placeholder: '请选择修复期限',
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'isPeriodTest',
+      label: '是否周期测试',
+      component: 'Select',
+      componentProps: {
+        placeholder: '请选择',
+        options: [
+          { label: '是', value: '1' },
+          { label: '否', value: '0' },
+        ],
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'description',
+      label: '描述',
+      component: 'InputTextArea',
+      componentProps: {
+        rows: 3,
+        maxlength: 500,
+        showCount: true,
+        placeholder: '请输入描述信息',
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'fileList',
+      label: '附件列表',
+      component: 'Input',
+      slot: 'fileList',
+      colProps: { span: 24 },
+    },
+  ],
+  showActionButtonGroup: false,
+});
+
+// 弹窗初始化
+const [registerModal, { setModalProps, closeModal }] = useModalInner(async (data) => {
+  resetFields();
+  setModalProps({ confirmLoading: false });
+  fileList.value = [];
+  
+  // 加载下拉选项
+  await loadOptions();
+  
+  // 如果有传入数据，设置表单值
+  if (data) {
+    setFieldsValue({
+      ...data,
+    });
+  }
+});
+
+// 加载下拉选项
+const loadOptions = async () => {
+  try {
+    // 并行加载资产和属主列表
+    const [assetRes, ownerRes] = await Promise.all([
+      getAssetListApi(),
+      getOwnerListApi(),
+    ]);
+    
+    assetOptions.value = assetRes || [];
+    ownerOptions.value = ownerRes || [];
+    
+    // 更新表单schema
+    updateSchema([
+      {
+        field: 'assetId',
+        componentProps: {
+          options: assetOptions.value,
+        },
+      },
+      {
+        field: 'ownerId',
+        componentProps: {
+          options: ownerOptions.value,
+        },
+      },
+    ]);
+  } catch (error) {
+    console.error('加载选项失败:', error);
+  }
+};
+
+// 下载模板
+const handleDownloadTemplate = async () => {
+  try {
+    downloadLoading.value = true;
+    const response = await downloadTemplateApi();
+    const blob = new Blob([response.data], { 
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    });
+    downloadFile(blob, `批量导入模板_${new Date().getTime()}.xlsx`);
+    message.success('模板下载成功');
+  } catch (error) {
+    message.error('模板下载失败');
+    console.error('下载模板失败:', error);
+  } finally {
+    downloadLoading.value = false;
+  }
+};
+
+// 处理选择文件按钮点击
+const handleSelectFile = () => {
+  uploadBtnRef.value?.$el?.click();
+};
+
+// 文件上传前的处理
+const beforeUpload = (file: File) => {
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    || file.type === 'application/vnd.ms-excel'
+    || file.name.endsWith('.xlsx')
+    || file.name.endsWith('.xls');
+  
+  if (!isExcel) {
+    message.error('只能上传Excel文件！');
+    return false;
+  }
+  
+  const isLt10M = file.size / 1024 / 1024 < 10;
+  if (!isLt10M) {
+    message.error('文件大小不能超过10MB！');
+    return false;
+  }
+  
+  return false; // 阻止自动上传
+};
+
+// 自定义上传处理
+const customUpload = ({ file }: any) => {
+  // 创建文件对象
+  const fileItem: FileItem = {
+    uid: Date.now().toString(),
+    name: file.name,
+    size: file.size,
+    file: file,
+    status: FileStatus.READY,
+  };
+  
+  // 替换文件列表（只保留一个文件）
+  fileList.value = [fileItem];
+  
+  // 设置文件名到表单
+  const fileName = file.name.replace(/\.[^/.]+$/, ''); // 移除扩展名
+  setFieldsValue({
+    fileName: `应用资产${Date.now()}${file.name.substring(file.name.lastIndexOf('.'))}`,
+  });
+  
+  message.success('文件选择成功');
+  return false;
+};
+
+// 移除文件
+const handleRemoveFile = (record: FileItem) => {
+  fileList.value = fileList.value.filter(item => item.uid !== record.uid);
+  
+  // 清空文件名
+  setFieldsValue({
+    fileName: '',
+  });
+  
+  message.info('文件已移除');
+};
+
+// 格式化文件大小
+const formatFileSize = (size: number) => {
+  if (size < 1024) {
+    return size + 'B';
+  } else if (size < 1024 * 1024) {
+    return (size / 1024).toFixed(2) + 'KB';
+  } else {
+    return (size / 1024 / 1024).toFixed(2) + 'MB';
+  }
+};
+
+// 获取状态颜色
+const getStatusColor = (status: FileStatus) => {
+  const colorMap = {
+    [FileStatus.READY]: 'default',
+    [FileStatus.UPLOADING]: 'processing',
+    [FileStatus.SUCCESS]: 'success',
+    [FileStatus.ERROR]: 'error',
+  };
+  return colorMap[status] || 'default';
+};
+
+// 获取状态文本
+const getStatusText = (status: FileStatus) => {
+  const textMap = {
+    [FileStatus.READY]: '待上传',
+    [FileStatus.UPLOADING]: '上传中',
+    [FileStatus.SUCCESS]: '成功',
+    [FileStatus.ERROR]: '失败',
+  };
+  return textMap[status] || '未知';
+};
+
+// 提交处理
+const handleSubmit = async () => {
+  try {
+    const values = await validate();
+    
+    if (fileList.value.length === 0) {
+      message.error('请选择要导入的文件！');
+      return;
+    }
+    
+    setModalProps({ confirmLoading: true });
+    
+    // 更新文件状态
+    fileList.value[0].status = FileStatus.UPLOADING;
+    
+    // 构建提交数据
+    const formData = new FormData();
+    formData.append('file', fileList.value[0].file);
+    formData.append('fileName', values.fileName);
+    formData.append('assetId', values.assetId || '');
+    formData.append('ownerId', values.ownerId || '');
+    formData.append('repairDeadline', values.repairDeadline || '');
+    formData.append('isPeriodTest', values.isPeriodTest || '');
+    formData.append('description', values.description || '');
+    
+    // 调用API上传
+    const result = await batchImportApi(formData);
+    
+    // 更新文件状态
+    fileList.value[0].status = FileStatus.SUCCESS;
+    
+    message.success('批量导入成功！');
+    setTimeout(() => {
+      closeModal();
+      emit('success', result);
+    }, 500);
+    
+  } catch (error: any) {
+    // 更新文件状态
+    if (fileList.value.length > 0) {
+      fileList.value[0].status = FileStatus.ERROR;
+    }
+    
+    message.error(error?.message || '批量导入失败！');
+    console.error('提交失败:', error);
+  } finally {
+    setModalProps({ confirmLoading: false });
+  }
+};
+</script>
+
+<style lang="less" scoped>
+.file-list-wrapper {
+  .file-list-container {
+    border: 1px solid #d9d9d9;
+    border-radius: 4px;
+    padding: 12px;
+    min-height: 120px;
+    background-color: #fafafa;
+    
+    :deep(.ant-table) {
+      background-color: transparent;
+      
+      .ant-table-tbody > tr > td {
+        padding: 6px 12px;
+        background-color: #fff;
+      }
+      
+      .ant-table-tbody > tr:hover > td {
+        background-color: #f5f5f5;
+      }
+    }
+  }
+  
+  :deep(.ant-alert) {
+    padding: 8px 12px;
+    
+    .ant-alert-message {
+      color: #666;
+    }
+  }
+}
+</style>
