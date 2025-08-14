@@ -1,0 +1,78 @@
+import { defHttp } from '/@/utils/http/axios';
+
+enum Api {
+  BatchImport = '/api/batch/import',
+  DownloadTemplate = '/api/batch/template',
+  GetAssetList = '/api/asset/list',
+  GetOwnerList = '/api/owner/list',
+}
+
+/**
+ * 批量导入接口参数
+ */
+export interface BatchImportParams {
+  file: File;
+  fileName: string;
+  assetId?: string;
+  ownerId?: string;
+  repairDeadline?: string;
+  isPeriodTest?: string;
+  description?: string;
+}
+
+/**
+ * 批量导入
+ */
+export const batchImportApi = (params: FormData) => {
+  return defHttp.uploadFile(
+    {
+      url: Api.BatchImport,
+    },
+    params,
+  );
+};
+
+/**
+ * 下载导入模板
+ */
+export const downloadTemplateApi = () => {
+  return defHttp.get(
+    {
+      url: Api.DownloadTemplate,
+      responseType: 'blob',
+    },
+    {
+      isReturnNativeResponse: true,
+    },
+  );
+};
+
+/**
+ * 获取资产列表（用于下拉选择）
+ */
+export const getAssetListApi = () => {
+  return defHttp.get<Array<{ label: string; value: string }>>({
+    url: Api.GetAssetList,
+  });
+};
+
+/**
+ * 获取属主列表（用于下拉选择）
+ */
+export const getOwnerListApi = () => {
+  return defHttp.get<Array<{ label: string; value: string }>>({
+    url: Api.GetOwnerList,
+  });
+};
+
+/**
+ * 导出文件工具函数
+ */
+export const downloadFile = (data: Blob, fileName: string) => {
+  const blob = new Blob([data]);
+  const link = document.createElement('a');
+  link.href = window.URL.createObjectURL(blob);
+  link.download = fileName;
+  link.click();
+  window.URL.revokeObjectURL(link.href);
+};
