@@ -1,0 +1,378 @@
+<template>
+  <PageWrapper title="填写安全检测信息单" contentFullHeight>
+    <div class="security-form-container">
+      <BasicForm @register="registerForm">
+        <!-- 新增应用按钮插槽 -->
+        <template #addApp="{ model, field }">
+          <a-button type="primary" @click="handleAddApp">
+            <PlusOutlined /> 新增应用
+          </a-button>
+        </template>
+      </BasicForm>
+      
+      <div class="form-footer">
+        <a-button size="large" @click="handleBack">← 返回</a-button>
+        <a-button size="large" type="primary" @click="handleSubmit">← 提交</a-button>
+      </div>
+    </div>
+  </PageWrapper>
+</template>
+
+<script lang="ts" setup>
+import { ref } from 'vue';
+import { BasicForm, useForm, FormSchema } from '@/components/Form';
+import { PageWrapper } from '@/components/Page';
+import { message } from 'ant-design-vue';
+import { useRouter } from 'vue-router';
+import { PlusOutlined } from '@ant-design/icons-vue';
+
+const router = useRouter();
+
+const schemas: FormSchema[] = [
+  {
+    field: 'divider1',
+    component: 'Divider',
+    label: ' ',
+    colProps: { span: 24 },
+    componentProps: {
+      orientation: 'left',
+    },
+  },
+  {
+    field: 'systemName',
+    label: '系统名称',
+    component: 'Select',
+    required: true,
+    colProps: { span: 18 },
+    componentProps: {
+      placeholder: '请选择系统',
+      options: [
+        { label: '运维大数据平台', value: '运维大数据平台' },
+        { label: '数据中台', value: '数据中台' },
+        { label: '业务系统A', value: '业务系统A' },
+        { label: '业务系统B', value: '业务系统B' },
+      ],
+    },
+    defaultValue: '运维大数据平台',
+  },
+  {
+    field: 'addApp',
+    label: ' ',
+    component: 'Input',
+    colProps: { span: 6 },
+    slot: 'addApp',
+  },
+  {
+    field: 'businessDept',
+    label: '业务主管部门',
+    component: 'Input',
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请输入业务主管部门',
+    },
+    defaultValue: '深圳信息部',
+  },
+  {
+    field: 'operationDept',
+    label: '系统运管部门',
+    component: 'Input',
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请输入系统运管部门',
+    },
+    defaultValue: '深圳信息部',
+  },
+  {
+    field: 'constructionDept',
+    label: '系统建设部门',
+    component: 'Input',
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请输入系统建设部门',
+    },
+    defaultValue: '深圳信息部',
+  },
+  {
+    field: 'maintenanceDept',
+    label: '系统运维部门',
+    component: 'Input',
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请输入系统运维部门',
+    },
+  },
+  {
+    field: 'divider2',
+    component: 'Divider',
+    label: ' ',
+    colProps: { span: 24 },
+  },
+  {
+    field: 'platformAdmin',
+    label: '请选择平台管理员',
+    component: 'Select',
+    required: true,
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请选择需要通知平台管理员',
+      mode: 'multiple',
+      options: [
+        { label: '张三', value: 'zhangsan' },
+        { label: '李四', value: 'lisi' },
+        { label: '王五', value: 'wangwu' },
+        { label: '赵六', value: 'zhaoliu' },
+      ],
+    },
+  },
+  {
+    field: 'securityLeader',
+    label: '请选择安全领导',
+    component: 'Select',
+    required: true,
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请选择需要审批得安全领导',
+      mode: 'multiple',
+      options: [
+        { label: '安全主管A', value: 'securityA' },
+        { label: '安全主管B', value: 'securityB' },
+        { label: '安全主管C', value: 'securityC' },
+      ],
+    },
+  },
+  {
+    field: 'lineLeader',
+    label: '请选择条线领导',
+    component: 'Select',
+    required: true,
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '请选择需要审批得条线领导',
+      mode: 'multiple',
+      options: [
+        { label: '条线领导A', value: 'lineA' },
+        { label: '条线领导B', value: 'lineB' },
+        { label: '条线领导C', value: 'lineC' },
+      ],
+    },
+  },
+  {
+    field: 'applicationType',
+    label: '申请类型',
+    component: 'Input',
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '--请选择--',
+    },
+  },
+  {
+    field: 'divider3',
+    component: 'Divider',
+    label: ' ',
+    colProps: { span: 24 },
+  },
+  {
+    field: 'detectionType',
+    label: '检测类型',
+    component: 'Select',
+    required: true,
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '--请选择--',
+      options: [
+        { label: '安全检测', value: 'security' },
+        { label: '渗透测试', value: 'penetration' },
+        { label: '代码审计', value: 'audit' },
+        { label: '漏洞扫描', value: 'scan' },
+      ],
+    },
+  },
+  {
+    field: 'detectionEnv',
+    label: '检测环境',
+    component: 'Select',
+    required: true,
+    colProps: { span: 12 },
+    componentProps: {
+      placeholder: '--请选择--',
+      options: [
+        { label: '生产环境', value: 'production' },
+        { label: '测试环境', value: 'test' },
+        { label: '开发环境', value: 'development' },
+        { label: 'UAT环境', value: 'uat' },
+      ],
+    },
+  },
+  {
+    field: 'systemRisk',
+    label: '系统存在的风险',
+    component: 'InputTextArea',
+    colProps: { span: 24 },
+    componentProps: {
+      placeholder: '请输入系统存在的风险描述...',
+      rows: 5,
+      showCount: true,
+      maxlength: 500,
+    },
+  },
+  {
+    field: 'description',
+    label: '描述',
+    component: 'InputTextArea',
+    required: true,
+    colProps: { span: 24 },
+    componentProps: {
+      placeholder: '请填写被测试系统的IP地址、URL登陆入口及系统基本信息',
+      rows: 8,
+      showCount: true,
+      maxlength: 1000,
+    },
+    helpMessage: '请填写被测试系统的IP地址、URL登陆入口及系统基本信息',
+  },
+];
+
+const [registerForm, { validate, getFieldsValue, resetFields, setFieldsValue }] = useForm({
+  labelWidth: 140,
+  schemas,
+  actionColOptions: {
+    span: 24,
+  },
+  showActionButtonGroup: false,
+  baseColProps: {
+    span: 24,
+  },
+  // 表单整体布局
+  layout: 'horizontal',
+  // 标签对齐方式
+  labelAlign: 'right',
+  // 表单包裹
+  wrapperCol: { span: 24 },
+});
+
+// 处理返回
+const handleBack = () => {
+  router.back();
+};
+
+// 处理提交
+const handleSubmit = async () => {
+  try {
+    await validate();
+    const values = getFieldsValue();
+    console.log('提交的表单数据:', values);
+    
+    // 模拟提交
+    message.loading('正在提交...', 1);
+    
+    setTimeout(() => {
+      message.success('提交成功！');
+      // router.push('/list'); // 跳转到列表页
+    }, 1500);
+    
+  } catch (error) {
+    console.error('表单验证失败:', error);
+    message.error('请填写完整的表单信息');
+  }
+};
+
+// 新增应用
+const handleAddApp = () => {
+  // 这里可以打开一个弹窗或跳转到新增应用页面
+  message.info('打开新增应用弹窗');
+  // 示例：添加新的选项到系统名称下拉框
+  // 实际项目中可能需要调用API并刷新选项列表
+};
+</script>
+
+<style lang="less" scoped>
+.security-form-container {
+  background: #fff;
+  padding: 24px;
+  border-radius: 4px;
+  
+  :deep(.ant-form) {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  
+  :deep(.ant-form-item) {
+    margin-bottom: 24px;
+  }
+  
+  :deep(.ant-form-item-label) {
+    font-weight: normal;
+    color: #333;
+    
+    > label {
+      color: #333;
+      
+      &.ant-form-item-required::before {
+        color: #ff4d4f;
+        margin-right: 4px;
+      }
+    }
+  }
+  
+  :deep(.ant-input),
+  :deep(.ant-select) {
+    width: 100%;
+  }
+  
+  :deep(.ant-select-selector) {
+    min-height: 32px !important;
+  }
+  
+  :deep(.ant-input-textarea) {
+    .ant-input {
+      resize: vertical;
+    }
+  }
+  
+  :deep(.ant-divider) {
+    margin: 16px 0;
+  }
+  
+  // 让新增应用按钮和系统名称在同一行对齐
+  :deep(.ant-row) {
+    .ant-col:has(#addApp) {
+      .ant-form-item-control-input-content {
+        display: flex;
+        justify-content: flex-start;
+        padding-left: 12px;
+      }
+    }
+  }
+  
+  .form-footer {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #f0f0f0;
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    
+    .ant-btn {
+      min-width: 100px;
+      height: 40px;
+      font-size: 14px;
+    }
+  }
+}
+
+// 响应式布局
+@media (max-width: 768px) {
+  .security-form-container {
+    padding: 16px;
+    
+    :deep(.ant-form-item) {
+      margin-bottom: 16px;
+    }
+    
+    :deep(.ant-col) {
+      width: 100% !important;
+      max-width: 100% !important;
+      flex: 0 0 100% !important;
+    }
+  }
+}
+</style>
