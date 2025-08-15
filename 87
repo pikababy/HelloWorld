@@ -1,0 +1,526 @@
+<template>
+  <BasicModal
+    v-bind="$attrs"
+    @register="registerModal"
+    :title="modalTitle"
+    :width="750"
+    @ok="handleSubmit"
+    :okText="'导入'"
+    :cancelText="'取消'"
+    :maskClosable="false"
+  >
+    <BasicForm @register="registerForm">
+      <!-- 主文件选择 -->
+      <template #mainFile="{ model, field }">
+        <div class="flex items-center">
+          <Input
+            v-model:value="model[field]"
+            placeholder="请选择文件"
+            :readonly="true"
+            class="flex-1"
+            style="background-color: #f5f5f5"
+          />
+          <Button
+            type="primary"
+            class="ml-2"
+            style="background-color: #52c41a; border-color: #52c41a"
+            @click="handleSelectMainFile"
+          >
+            <PlusOutlined />
+          </Button>
+        </div>
+        <!-- 隐藏的主文件上传组件 -->
+        <Upload
+          v-show="false"
+          ref="mainFileUploadRef"
+          :showUploadList="false"
+          :beforeUpload="beforeMainFileUpload"
+          accept=".xlsx,.xls"
+          :multiple="false"
+        >
+          <Button ref="mainFileUploadBtnRef">选择主文件</Button>
+        </Upload>
+      </template>
+
+      <!-- 附件列表 -->
+      <template #attachmentList>
+        <div class="attachment-wrapper">
+          <!-- 附件表格 -->
+          <div class="attachment-table-container">
+            <Table
+              :key="tableKey"
+              :columns="fileColumns"
+              :dataSource="attachmentList"
+              :pagination="false"
+              :scroll="{ y: 120 }"
+              size="small"
+              bordered
+            >
+              <template #title>
+                <div class="table-title-bar">
+                  <Button 
+                    size="small" 
+                    @click="handleSelectAttachment"
+                  >
+                    选择文件
+                  </Button>
+                </div>
+              </template>
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'action'">
+                  <Button 
+                    type="link" 
+                    size="small" 
+                    @click="handleRemoveAttachment(record)"
+                    style="color: #1890ff"
+                  >
+                    Remove
+                  </Button>
+                </template>
+                <template v-else-if="column.key === 'size'">
+                  {{ formatFileSize(record.size) }}
+                </template>
+              </template>
+            </Table>
+          </div>
+          
+          <!-- 隐藏的附件上传组件 -->
+          <Upload
+            v-show="false"
+            ref="attachmentUploadRef"
+            :showUploadList="false"
+            :beforeUpload="beforeAttachmentUpload"
+            accept=".xlsx,.xls"
+            :multiple="false"
+          >
+            <Button ref="attachmentUploadBtnRef">选择附件</Button>
+          </Upload>
+        </div>
+      </template>
+    </BasicForm>
+  </BasicModal>
+</template>
+
+<script lang="ts" setup>
+import { ref, h, nextTick } from 'vue';
+import { BasicModal, useModalInner } from '/@/components/Modal';
+import { BasicForm, useForm } from '/@/components/Form';
+import { Input, Button, Upload, Table, message } from 'ant-design-vue';
+import { PlusOutlined } from '@ant-design/icons-vue';
+
+// 定义文件项接口
+interface FileItem {
+  uid: string;
+  name: string;
+  size: number;
+  file: File;
+}
+
+const emit = defineEmits(['success', 'register']);
+
+const modalTitle = ref('批量导入');
+const tableKey = ref(0); // 用于强制刷新表格
+
+// 主文件相关
+const mainFile = ref<FileItem | null>(null);
+const mainFileUploadRef = ref();
+const mainFileUploadBtnRef = ref();
+
+// 附件相关
+const attachmentList = ref<FileItem[]>([]);
+const attachmentUploadRef = ref();
+const attachmentUploadBtnRef = ref();
+
+// 附件表格列配置
+const fileColumns = [
+  {
+    title: '文件名',
+    dataIndex: 'name',
+    key: 'name',
+    ellipsis: true,
+  },
+  {
+    title: '大小',
+    dataIndex: 'size',
+    key: 'size',
+    width: 100,
+    align: 'center',
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: 100,
+    align: 'center',
+  },
+];
+
+// 表单配置
+const [registerForm, { validate, resetFields, setFieldsValue, getFieldsValue }] = useForm({
+  labelWidth: 120,
+  schemas: [
+    {
+      field: 'mainFile',
+      label: '文件名',
+      component: 'Input',
+      slot: 'mainFile',
+      required: true,
+      rules: [
+        {
+          required: true,
+          message: '请选择文件',
+          trigger: 'change',
+        },
+      ],
+      colProps: { span: 24 },
+    },
+    {
+      field: 'assetId',
+      label: '应用资产',
+      component: 'Select',
+      required: true,
+      componentProps: {
+        placeholder: '请选择资产',
+        allowClear: true,
+        options: [
+          { label: '资产1', value: '1' },
+          { label: '资产2', value: '2' },
+          { label: '资产3', value: '3' },
+        ],
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'ownerId',
+      label: '属主',
+      component: 'Select',
+      required: true,
+      componentProps: {
+        placeholder: '请选择属主',
+        allowClear: true,
+        options: [
+          { label: '张三', value: '1' },
+          { label: '李四', value: '2' },
+          { label: '王五', value: '3' },
+        ],
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'repairDeadline',
+      label: '修复期限',
+      component: 'DatePicker',
+      required: true,
+      componentProps: {
+        style: { width: '100%' },
+        format: 'YYYY-MM-DD',
+        valueFormat: 'YYYY-MM-DD',
+        placeholder: '请选择日期',
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'isPeriodTest',
+      label: '是否周期测试',
+      component: 'Select',
+      required: true,
+      componentProps: {
+        placeholder: '请选择',
+        options: [
+          { label: '是', value: '1' },
+          { label: '否', value: '0' },
+        ],
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'description',
+      label: '描述',
+      component: 'InputTextArea',
+      required: true,
+      componentProps: {
+        rows: 3,
+        placeholder: '请输入描述',
+        showCount: true,
+        maxlength: 200,
+      },
+      colProps: { span: 24 },
+    },
+    {
+      field: 'attachmentList',
+      label: '附件列表',
+      component: 'Input',
+      slot: 'attachmentList',
+      colProps: { span: 24 },
+    },
+  ],
+  showActionButtonGroup: false,
+});
+
+// 弹窗初始化
+const [registerModal, { setModalProps, closeModal }] = useModalInner(async (data) => {
+  resetFields();
+  setModalProps({ confirmLoading: false });
+  mainFile.value = null;
+  attachmentList.value = [];
+  tableKey.value = 0; // 重置表格key
+  
+  // 如果有传入数据，设置表单值
+  if (data) {
+    setFieldsValue({
+      ...data,
+    });
+  }
+});
+
+// 选择主文件
+const handleSelectMainFile = () => {
+  mainFileUploadBtnRef.value?.$el?.click();
+};
+
+// 主文件上传前处理
+const beforeMainFileUpload = (file: File) => {
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    || file.type === 'application/vnd.ms-excel'
+    || file.name.endsWith('.xlsx')
+    || file.name.endsWith('.xls');
+  
+  if (!isExcel) {
+    message.error('只能上传Excel文件！');
+    return false;
+  }
+  
+  const isLt10M = file.size / 1024 / 1024 < 10;
+  if (!isLt10M) {
+    message.error('文件大小不能超过10MB！');
+    return false;
+  }
+  
+  // 判断是否已有主文件
+  const hadMainFile = mainFile.value !== null;
+  
+  // 保存主文件（使用原始文件名）
+  mainFile.value = {
+    uid: Date.now().toString(),
+    name: file.name,  // 使用原始文件名
+    size: file.size,
+    file: file,
+  };
+  
+  // 回显原始文件名到输入框
+  setFieldsValue({
+    mainFile: file.name,  // 显示原始文件名
+  });
+  
+  if (hadMainFile) {
+    message.success('文件已替换');
+  } else {
+    message.success('文件选择成功');
+  }
+  
+  return false; // 阻止自动上传
+};
+
+// 选择附件
+const handleSelectAttachment = () => {
+  attachmentUploadBtnRef.value?.$el?.click();
+};
+
+// 附件上传前处理
+const beforeAttachmentUpload = async (file: File) => {
+  const isExcel = file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+    || file.type === 'application/vnd.ms-excel'
+    || file.name.endsWith('.xlsx')
+    || file.name.endsWith('.xls');
+  
+  if (!isExcel) {
+    message.error('只能上传Excel文件！');
+    return false;
+  }
+  
+  const isLt10M = file.size / 1024 / 1024 < 10;
+  if (!isLt10M) {
+    message.error('文件大小不能超过10MB！');
+    return false;
+  }
+  
+  // 判断是否已有附件
+  const hadAttachment = attachmentList.value.length > 0;
+  
+  // 创建新附件对象
+  const fileItem: FileItem = {
+    uid: `${Date.now()}`,
+    name: file.name, // 使用实际文件名
+    size: file.size,
+    file: file,
+  };
+  
+  // 直接替换为新文件数组（覆盖旧文件）
+  attachmentList.value = [fileItem];
+  
+  // 强制刷新表格
+  tableKey.value++;
+  
+  // 等待DOM更新
+  await nextTick();
+  
+  if (hadAttachment) {
+    message.success('附件已替换');
+  } else {
+    message.success('附件上传成功');
+  }
+  
+  return false; // 阻止自动上传
+};
+
+// 移除附件
+const handleRemoveAttachment = async (record: FileItem) => {
+  attachmentList.value = [];
+  tableKey.value++; // 强制刷新表格
+  await nextTick();
+  message.info('附件已移除');
+};
+
+// 格式化文件大小
+const formatFileSize = (size: number) => {
+  const mb = size / 1024 / 1024;
+  if (mb < 0.01) {
+    return '0.01MB';
+  }
+  return mb.toFixed(2) + 'MB';
+};
+
+// 提交处理
+const handleSubmit = async () => {
+  try {
+    const values = await validate();
+    
+    if (!mainFile.value) {
+      message.error('请选择要导入的文件！');
+      return;
+    }
+    
+    setModalProps({ confirmLoading: true });
+    
+    // 构建提交数据
+    const formData = new FormData();
+    
+    // 添加主文件
+    formData.append('mainFile', mainFile.value.file);
+    formData.append('fileName', mainFile.value.name);  // 使用实际保存的文件名
+    
+    // 添加附件（如果有）
+    if (attachmentList.value.length > 0) {
+      formData.append('attachment', attachmentList.value[0].file);
+      formData.append('attachmentName', attachmentList.value[0].name);
+    }
+    
+    // 添加其他表单字段
+    formData.append('assetId', values.assetId || '');
+    formData.append('ownerId', values.ownerId || '');
+    formData.append('repairDeadline', values.repairDeadline || '');
+    formData.append('isPeriodTest', values.isPeriodTest || '');
+    formData.append('description', values.description || '');
+    
+    // TODO: 调用API上传
+    // const result = await batchImportApi(formData);
+    
+    // 模拟上传成功
+    setTimeout(() => {
+      message.success('批量导入成功！');
+      closeModal();
+      emit('success');
+      setModalProps({ confirmLoading: false });
+    }, 1500);
+    
+  } catch (error) {
+    setModalProps({ confirmLoading: false });
+    message.error('请填写所有必填项！');
+    console.error('提交失败:', error);
+  }
+};
+</script>
+
+<style lang="less" scoped>
+// 附件区域样式
+.attachment-wrapper {
+  .attachment-table-container {
+    border: 1px solid #d9d9d9;
+    border-radius: 2px;
+    overflow: hidden;
+    
+    // 表格标题栏样式
+    :deep(.ant-table-title) {
+      padding: 0;
+      border-bottom: 1px solid #f0f0f0;
+      
+      .table-title-bar {
+        padding: 8px 12px;
+        text-align: right;
+        background: #fafafa;
+      }
+    }
+    
+    // 表格样式调整
+    :deep(.ant-table) {
+      .ant-table-container {
+        border: none;
+      }
+      
+      .ant-table-thead > tr > th {
+        background: #fafafa;
+        font-weight: normal;
+        color: rgba(0, 0, 0, 0.85);
+        padding: 8px 12px;
+      }
+      
+      .ant-table-tbody > tr > td {
+        padding: 8px 12px;
+      }
+      
+      // 去除表格的外边框（因为容器已有边框）
+      .ant-table-bordered {
+        .ant-table-container {
+          border: none;
+        }
+      }
+      
+      // 空数据提示
+      .ant-table-placeholder {
+        .ant-table-cell {
+          padding: 20px;
+          border-bottom: none;
+        }
+      }
+    }
+  }
+}
+
+// 表单必填项星号样式
+:deep(.ant-form) {
+  .ant-form-item-required {
+    &::before {
+      display: inline-block;
+      margin-right: 4px;
+      color: #ff4d4f;
+      font-size: 14px;
+      font-family: SimSun, sans-serif;
+      line-height: 1;
+      content: '*';
+    }
+  }
+}
+
+// 按钮样式微调
+:deep(.ant-btn) {
+  &.ant-btn-primary {
+    height: 32px;
+    padding: 0 12px;
+  }
+}
+
+// 输入框禁用样式
+:deep(.ant-input[readonly]) {
+  cursor: default;
+  color: rgba(0, 0, 0, 0.85);
+}
+</style>
