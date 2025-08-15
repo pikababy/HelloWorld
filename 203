@@ -1,0 +1,56 @@
+import { defHttp } from '/@/utils/http/axios';
+
+/**
+ * 批量导入接口
+ * @param formData FormData对象，包含excelFile、attachment和param
+ * @param cacheBuster 缓存破坏参数
+ */
+export const batchImportApi = (formData: FormData, cacheBuster: number) => {
+  return defHttp.post(
+    {
+      url: `/api/flow/vulner-manger/bulk-import?cacheBuster=${cacheBuster}`,
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      data: formData,
+      timeout: 60000, // 60秒超时
+    },
+    {
+      isTransformResponse: false, // 不转换响应数据
+      isReturnNativeResponse: false, // 返回数据而不是整个响应
+    }
+  );
+};
+
+/**
+ * 获取资产列表
+ */
+export const getAssetListApi = () => {
+  return defHttp.get({
+    url: '/api/flow/vulner-manger/asset-list',
+  });
+};
+
+/**
+ * 获取属主列表
+ */
+export const getOwnerListApi = () => {
+  return defHttp.get({
+    url: '/api/flow/vulner-manger/owner-list',
+  });
+};
+
+/**
+ * 下载导入模板
+ */
+export const downloadTemplateApi = () => {
+  return defHttp.get(
+    {
+      url: '/api/flow/vulner-manger/template',
+      responseType: 'blob',
+    },
+    {
+      isReturnNativeResponse: true,
+    }
+  );
+};
