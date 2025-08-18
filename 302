@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>四环形图数据可视化</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            color: #333;
+            margin: 0;
+            font-size: 2.5em;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .date-range {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .date-range label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .chart-wrapper {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .chart-wrapper:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+        }
+
+        .chart-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        .chart {
+            width: 100%;
+            height: 200px;
+        }
+
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .stats-card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+            border-left: 5px solid #667eea;
+        }
+
+        .stats-card h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 1.2em;
+        }
+
+        .stats-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .stats-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .summary-info {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 4px solid #28a745;
+        }
+
+        .update-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            font-size: 1em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        .update-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        @media (max-width: 768px) {
+            .charts-container {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 15px;
+            }
+            
+            .container {
+                padding: 15px;
+            }
+            
+            .chart {
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>安全漏洞分析报告</h1>
+            <div class="date-range">
+                <label>统计时间:</label>
+                <span>2025-06-18 14:21:01 — 2025-08-18 14:21:01</span>
+            </div>
+        </div>
+
+        <div class="charts-container">
+            <div class="chart-wrapper">
+                <div id="hostChart" class="chart"></div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="systemChart" class="chart"></div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="appChart" class="chart"></div>
+            </div>
+            <div class="chart-wrapper">
+                <div id="networkChart" class="chart"></div>
+            </div>
+        </div>
+
+        <div class="stats-container">
+            <div class="stats-card">
+                <h3>应用组件漏洞</h3>
+                <div class="stats-number" id="appCount">1</div>
+                <div class="stats-label">今日新增: <span style="color: #dc3545;">0</span></div>
+                <div class="stats-label">平均处理时长: <span style="color: #007bff;">0</span></div>
+            </div>
+            <div class="stats-card">
+                <h3>网络设备漏洞</h3>
+                <div class="stats-number" id="networkCount">3</div>
+                <div class="stats-label">今日新增: <span style="color: #dc3545;">0</span></div>
+                <div class="stats-label">平均处理时长: <span style="color: #007bff;">0.00</span></div>
+            </div>
+        </div>
+
+        <div class="summary-info">
+            <h3>📊 数据总览</h3>
+            <p><strong>验证信息:</strong> 四个环形图的数据已归一化处理，确保总和为100%</p>
+            <p><strong>原始数据总计:</strong> <span id="originalTotal">293</span> 个漏洞</p>
+            <p><strong>数据更新:</strong> 支持实时数据更新，自动保持百分比平衡</p>
+            
+            <div style="margin-top: 15px;">
+                <button class="update-button" onclick="simulateDataUpdate1()">模拟更新1</button>
+                <button class="update-button" onclick="simulateDataUpdate2()">模拟更新2</button>
+                <button class="update-button" onclick="resetToOriginal()">重置数据</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 原始数据
+        const rawData = {
+            host: 226,      // 主机漏洞
+            system: 36,     // 系统漏洞  
+            app: 27,        // 应用组件漏洞
+            network: 4      // 网络设备漏洞
+        };
+
+        // 数据归一化处理 - 确保总和为100%
+        function normalizeData(data, targetTotal = 100) {
+            const currentTotal = Object.values(data).reduce((sum, value) => sum + value, 0);
+            const normalized = {};
+            
+            Object.keys(data).forEach(key => {
+                normalized[key] = (data[key] / currentTotal) * targetTotal;
+            });
+            
+            return normalized;
+        }
+
+        // 获取归一化后的数据
+        let normalizedData = normalizeData(rawData);
+
+        // ECharts配置
+        const chartConfigs = [
+            {
+                id: 'hostChart',
+                title: '主机漏洞',
+                value: normalizedData.host,
+                color: '#d32f2f'
+            },
+            {
+                id: 'systemChart', 
+                title: '系统漏洞',
+                value: normalizedData.system,
+                color: '#ff9800'
+            },
+            {
+                id: 'appChart',
+                title: '应用组件漏洞', 
+                value: normalizedData.app,
+                color: '#3f51b5'
+            },
+            {
+                id: 'networkChart',
+                title: '网络设备漏洞',
+                value: normalizedData.network,
+                color: '#4caf50'
+            }
+        ];
+
+        // 创建单个环形图的配置
+        function createRingChartOption(config) {
+            return {
+                title: {
+                    text: config.title,
+                    left: 'center',
+                    bottom: '5%',
+                    textStyle: {
+                        fontSize: 14,
+                        color: '#333',
+                        fontWeight: 'bold'
+                    }
+                },
+                series: [{
+                    type: 'pie',
+                    radius: ['50%', '75%'],
+                    center: ['50%', '40%'],
+                    startAngle: 90,
+                    data: [
+                        {
+                            value: config.value,
+                            name: config.title,
+                            itemStyle: {
+                                color: config.color,
+                                shadowBlur: 10,
+                                shadowColor: 'rgba(0,0,0,0.3)'
+                            },
+                            label: {
+                                show: true,
+                                position: 'center',
+                                fontSize: 18,
+                                fontWeight: 'bold',
+                                formatter: function(params) {
+                                    return params.value.toFixed(1) + '%';
+                                },
+                                color: config.color
+                            }
+                        },
+                        {
+                            value: 100 - config.value,
+                            name: '其他',
+                            itemStyle: {
+                                color: '#f0f0f0'
+                            },
+                            label: {
+                                show: false
+                            },
+                            tooltip: {
+                                show: false
+                            }
+                        }
+                    ],
+                    emphasis: {
+                        scale: true,
+                        scaleSize: 5
+                    },
+                    animationType: 'scale',
+                    animationEasing: 'elasticOut',
+                    animationDelay: function (idx) {
+                        return Math.random() * 200;
+                    }
+                }],
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.name !== '其他') {
+                            const originalKey = Object.keys(rawData)[chartConfigs.findIndex(c => c.title === params.name)];
+                            const originalValue = rawData[originalKey];
+                            return `<div style="padding: 8px;">
+                                <strong>${params.name}</strong><br/>
+                                百分比: ${params.value.toFixed(1)}%<br/>
+                                原始数值: ${originalValue}
+                            </div>`;
+                        }
+                        return false;
+                    },
+                    backgroundColor: 'rgba(50,50,50,0.9)',
+                    borderColor: config.color,
+                    borderWidth: 2,
+                    textStyle: {
+                        color: '#fff'
+                    }
+                }
+            };
+        }
+
+        // 初始化所有图表
+        function initCharts() {
+            chartConfigs.forEach(config => {
+                const chartDom = document.getElementById(config.id);
+                if (chartDom) {
+                    const myChart = echarts.init(chartDom);
+                    const option = createRingChartOption(config);
+                    myChart.setOption(option);
+                    
+                    // 响应式处理
+                    window.addEventListener('resize', function () {
+                        myChart.resize();
+                    });
+                }
+            });
+        }
+
+        // 验证数据总和
+        function validateDataSum() {
+            const sum = chartConfigs.reduce((total, config) => total + config.value, 0);
+            console.log('四个环形图数据总和:', sum.toFixed(2) + '%');
+            
+            const originalTotal = Object.values(rawData).reduce((sum, value) => sum + value, 0);
+            document.getElementById('originalTotal').textContent = originalTotal;
+            
+            // 更新统计卡片
+            document.getElementById('appCount').textContent = rawData.app || 0;
+            document.getElementById('networkCount').textContent = rawData.network || 0;
+        }
+
+        // 动态更新数据的函数
+        function updateChartData(newData) {
+            // 更新全局rawData
+            Object.assign(rawData, newData);
+            
+            const newNormalizedData = normalizeData(newData);
+            normalizedData = newNormalizedData;
+            
+            chartConfigs.forEach((config, index) => {
+                const key = Object.keys(newData)[index];
+                config.value = newNormalizedData[key];
+                
+                const chartDom = document.getElementById(config.id);
+                if (chartDom) {
+                    const chart = echarts.getInstanceByDom(chartDom);
+                    if (chart) {
+                        const newOption = createRingChartOption(config);
+                        chart.setOption(newOption, true);
+                    }
+                }
+            });
+            
+            validateDataSum();
+        }
+
+        // 模拟数据更新函数
+        function simulateDataUpdate1() {
+            updateChartData({
+                host: 300,
+                system: 80, 
+                app: 60,
+                network: 20
+            });
+        }
+
+        function simulateDataUpdate2() {
+            updateChartData({
+                host: 150,
+                system: 120, 
+                app: 90,
+                network: 40
+            });
+        }
+
+        function resetToOriginal() {
+            updateChartData({
+                host: 226,
+                system: 36,
+                app: 27,
+                network: 4
+            });
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+            validateDataSum();
+            
+            // 添加加载动画效果
+            setTimeout(() => {
+                document.querySelectorAll('.chart-wrapper').forEach((wrapper, index) => {
+                    setTimeout(() => {
+                        wrapper.style.opacity = '0';
+                        wrapper.style.transform = 'translateY(20px)';
+                        wrapper.style.transition = 'all 0.6s ease';
+                        
+                        setTimeout(() => {
+                            wrapper.style.opacity = '1';
+                            wrapper.style.transform = 'translateY(0)';
+                        }, 100);
+                    }, index * 200);
+                });
+            }, 100);
+        });
+    </script>
+</body>
+</html>
