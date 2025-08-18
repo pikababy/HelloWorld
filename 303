@@ -1,0 +1,189 @@
+// 原始数据
+const rawData = {
+    host: 226,      // 主机漏洞
+    system: 36,     // 系统漏洞  
+    app: 27,        // 应用组件漏洞
+    network: 4      // 网络设备漏洞
+};
+
+// 计算总数
+const total = Object.values(rawData).reduce((sum, value) => sum + value, 0);
+
+// 数据归一化处理 - 确保总和为100%
+function normalizeData(data, targetTotal = 100) {
+    const currentTotal = Object.values(data).reduce((sum, value) => sum + value, 0);
+    const normalized = {};
+    
+    Object.keys(data).forEach(key => {
+        normalized[key] = (data[key] / currentTotal) * targetTotal;
+    });
+    
+    return normalized;
+}
+
+// ECharts配置
+const chartConfigs = [
+    {
+        id: 'hostChart',
+        title: '主机漏洞',
+        originalValue: rawData.host,
+        color: '#d32f2f'
+    },
+    {
+        id: 'systemChart', 
+        title: '系统漏洞',
+        originalValue: rawData.system,
+        color: '#ff9800'
+    },
+    {
+        id: 'appChart',
+        title: '应用组件漏洞', 
+        originalValue: rawData.app,
+        color: '#3f51b5'
+    },
+    {
+        id: 'networkChart',
+        title: '网络设备漏洞',
+        originalValue: rawData.network,
+        color: '#4caf50'
+    }
+];
+
+// 创建单个环形图的配置
+function createRingChartOption(config) {
+    // 计算总数用于百分比计算
+    const total = Object.values(rawData).reduce((sum, value) => sum + value, 0);
+    const percentage = (config.originalValue / total) * 100;
+    
+    return {
+        title: {
+            text: config.title,
+            left: 'center',
+            bottom: '10%',
+            textStyle: {
+                fontSize: 14,
+                color: '#333'
+            }
+        },
+        series: [{
+            type: 'pie',
+            radius: ['50%', '70%'],
+            center: ['50%', '45%'],
+            startAngle: 90,
+            data: [
+                {
+                    value: percentage, // 用百分比控制扇形大小
+                    name: config.title,
+                    itemStyle: {
+                        color: config.color
+                    },
+                    label: {
+                        show: true,
+                        position: 'center',
+                        fontSize: 20,
+                        fontWeight: 'bold',
+                        formatter: function() {
+                            return config.originalValue; // 显示原始数值
+                        }
+                    }
+                },
+                {
+                    value: 100 - percentage,
+                    name: '其他',
+                    itemStyle: {
+                        color: '#f0f0f0'
+                    },
+                    label: {
+                        show: false
+                    },
+                    tooltip: {
+                        show: false
+                    }
+                }
+            ],
+            emphasis: {
+                disabled: true
+            }
+        }],
+        tooltip: {
+            trigger: 'item',
+            formatter: function(params) {
+                if (params.name !== '其他') {
+                    return `${params.name}: ${config.originalValue}<br/>占比: ${percentage.toFixed(1)}%`;
+                }
+                return false;
+            }
+        }
+    };
+}
+
+// 初始化所有图表
+function initCharts() {
+    chartConfigs.forEach(config => {
+        const chartDom = document.getElementById(config.id);
+        if (chartDom) {
+            const myChart = echarts.init(chartDom);
+            const option = createRingChartOption(config);
+            myChart.setOption(option);
+        }
+    });
+}
+
+// 验证数据总和
+function validateDataSum() {
+    const total = Object.values(rawData).reduce((sum, value) => sum + value, 0);
+    console.log('原始数据总和:', total);
+    console.log('原始数据:', rawData);
+    
+    // 显示每个图表的数值和百分比
+    chartConfigs.forEach(config => {
+        const percentage = (config.originalValue / total) * 100;
+        console.log(`${config.title}: ${config.originalValue} (${percentage.toFixed(1)}%)`);
+    });
+    
+    // 验证百分比总和是否为100%
+    const percentageSum = chartConfigs.reduce((sum, config) => {
+        return sum + (config.originalValue / total) * 100;
+    }, 0);
+    console.log('百分比总和:', percentageSum.toFixed(2) + '%');
+}
+
+// 动态更新数据的函数
+function updateChartData(newData) {
+    // 更新原始数据
+    Object.assign(rawData, newData);
+    
+    // 更新配置中的原始值
+    chartConfigs.forEach((config, index) => {
+        const key = Object.keys(newData)[index];
+        config.originalValue = newData[key];
+        
+        const chartDom = document.getElementById(config.id);
+        if (chartDom) {
+            const chart = echarts.getInstanceByDom(chartDom);
+            if (chart) {
+                const newOption = createRingChartOption(config);
+                chart.setOption(newOption);
+            }
+        }
+    });
+    
+    validateDataSum();
+}
+
+// 页面加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initCharts();
+    validateDataSum();
+});
+
+// 示例：模拟数据更新
+setTimeout(() => {
+    console.log('=== 更新数据示例 ===');
+    updateChartData({
+        host: 300,
+        system: 50, 
+        app: 40,
+        network: 10
+    });
+}, 3000);
