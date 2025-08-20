@@ -1,0 +1,349 @@
+<template>
+  <a-modal
+    v-model:visible="visible"
+    title="漏洞信息详情/填写反馈信息"
+    width="900px"
+    :mask-closable="true"
+    :footer="null"
+    @cancel="handleClose"
+  >
+    <div class="vulnerability-detail">
+      <!-- 主体内容区 -->
+      <a-row :gutter="24">
+        <!-- 左侧：漏洞详情 -->
+        <a-col :span="12">
+          <div class="section">
+            <div class="section-title">
+              <span class="title-badge">基本信息</span>
+            </div>
+            
+            <a-descriptions :column="1" size="small" :label-style="{ width: '100px' }">
+              <a-descriptions-item label="漏洞ID">
+                {{ vulnerabilityData.id }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="漏洞类型">
+                {{ vulnerabilityData.type }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="创建时间">
+                {{ vulnerabilityData.createTime }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="CVE编号">
+                {{ vulnerabilityData.cveNumber }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="漏洞名称">
+                {{ vulnerabilityData.name }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="漏洞详情">
+                <a-textarea
+                  v-model:value="vulnerabilityData.detail"
+                  :rows="4"
+                  :disabled="true"
+                  style="width: 100%"
+                />
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="修复方法">
+                <a-textarea
+                  v-model:value="vulnerabilityData.fixMethod"
+                  :rows="3"
+                  :disabled="true"
+                  style="width: 100%"
+                />
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="参考链接">
+                <a-input
+                  v-model:value="vulnerabilityData.referenceLink"
+                  :disabled="true"
+                />
+              </a-descriptions-item>
+            </a-descriptions>
+          </div>
+
+          <!-- 业务信息 -->
+          <div class="section" style="margin-top: 20px">
+            <div class="section-title">
+              <span class="title-badge">业务信息</span>
+            </div>
+            
+            <a-descriptions :column="1" size="small" :label-style="{ width: '100px' }">
+              <a-descriptions-item label="应用资产名称">
+                {{ businessData.assetName }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="发布环境">
+                {{ businessData.environment }}
+              </a-descriptions-item>
+            </a-descriptions>
+          </div>
+        </a-col>
+
+        <!-- 右侧：处理信息 -->
+        <a-col :span="12">
+          <div class="section">
+            <div class="section-title">
+              <span class="title-badge">处理信息</span>
+            </div>
+            
+            <a-form
+              :model="formData"
+              :label-col="{ span: 6 }"
+              :wrapper-col="{ span: 18 }"
+            >
+              <a-form-item label="处理结果" required>
+                <a-select
+                  v-model:value="formData.handleResult"
+                  placeholder="请选择处理结果"
+                  style="width: 100%"
+                >
+                  <a-select-option value="fixed">已修复</a-select-option>
+                  <a-select-option value="ignored">忽略</a-select-option>
+                  <a-select-option value="false-positive">误报</a-select-option>
+                  <a-select-option value="pending">待处理</a-select-option>
+                </a-select>
+              </a-form-item>
+              
+              <a-form-item label="误报描述" required>
+                <a-textarea
+                  v-model:value="formData.falsePositiveDesc"
+                  :rows="6"
+                  placeholder="请输入误报描述"
+                  :disabled="formData.handleResult !== 'false-positive'"
+                />
+              </a-form-item>
+            </a-form>
+          </div>
+
+          <!-- 处理信息补充 -->
+          <div class="section" style="margin-top: 20px">
+            <div class="section-title">
+              <span class="title-badge">处理信息</span>
+            </div>
+            
+            <a-descriptions :column="1" size="small" :label-style="{ width: '120px' }">
+              <a-descriptions-item label="是否发布到互联网">
+                <span :style="{ color: handleData.isPublished ? '#52c41a' : '#f5222d' }">
+                  {{ handleData.isPublished ? '是' : '否' }}
+                </span>
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="最后一次检测时间">
+                {{ handleData.lastCheckTime }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="属主">
+                {{ handleData.owner }}
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="计划修复时间">
+                <a-date-picker
+                  v-model:value="formData.plannedFixTime"
+                  style="width: 100%"
+                  placeholder="选择计划修复时间"
+                />
+              </a-descriptions-item>
+              
+              <a-descriptions-item label="处理结果">
+                {{ handleData.result }}
+              </a-descriptions-item>
+            </a-descriptions>
+          </div>
+        </a-col>
+      </a-row>
+
+      <!-- 底部按钮 -->
+      <div class="footer-buttons">
+        <a-button type="primary" @click="handleSubmit">提交</a-button>
+        <a-button @click="handleClose" style="margin-left: 10px">关闭</a-button>
+      </div>
+    </div>
+  </a-modal>
+</template>
+
+<script setup>
+import { ref, reactive, watch } from 'vue'
+import { message } from 'ant-design-vue'
+
+// Props
+const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false
+  },
+  // 漏洞数据
+  data: {
+    type: Object,
+    default: () => ({})
+  }
+})
+
+// Emits
+const emit = defineEmits(['update:modelValue', 'submit', 'close'])
+
+// 弹窗显示状态
+const visible = ref(props.modelValue)
+
+// 监听 props 变化
+watch(() => props.modelValue, (val) => {
+  visible.value = val
+})
+
+watch(() => visible.value, (val) => {
+  emit('update:modelValue', val)
+})
+
+// 漏洞基本信息
+const vulnerabilityData = reactive({
+  id: props.data.id || 'VUL-2024-0001',
+  type: props.data.type || '漏洞类型',
+  createTime: props.data.createTime || '2024-01-15 10:30:00',
+  cveNumber: props.data.cveNumber || 'CVE-2024-0001',
+  name: props.data.name || '漏洞名称示例',
+  detail: props.data.detail || '这是漏洞详情描述...',
+  fixMethod: props.data.fixMethod || '建议的修复方法...',
+  referenceLink: props.data.referenceLink || 'https://example.com/reference'
+})
+
+// 业务信息
+const businessData = reactive({
+  assetName: props.data.assetName || '应用系统名称',
+  environment: props.data.environment || '生产环境'
+})
+
+// 处理信息（只读）
+const handleData = reactive({
+  isPublished: props.data.isPublished || false,
+  lastCheckTime: props.data.lastCheckTime || '2024-01-20 15:00:00',
+  owner: props.data.owner || '用户部门',
+  result: props.data.result || '/'
+})
+
+// 表单数据
+const formData = reactive({
+  handleResult: '',
+  falsePositiveDesc: '',
+  plannedFixTime: null
+})
+
+// 提交处理
+const handleSubmit = () => {
+  if (!formData.handleResult) {
+    message.warning('请选择处理结果')
+    return
+  }
+  
+  if (formData.handleResult === 'false-positive' && !formData.falsePositiveDesc) {
+    message.warning('请填写误报描述')
+    return
+  }
+  
+  // 提交数据
+  const submitData = {
+    ...vulnerabilityData,
+    ...businessData,
+    ...formData,
+    handleData
+  }
+  
+  emit('submit', submitData)
+  message.success('提交成功')
+  handleClose()
+}
+
+// 关闭弹窗
+const handleClose = () => {
+  visible.value = false
+  emit('close')
+  // 重置表单
+  formData.handleResult = ''
+  formData.falsePositiveDesc = ''
+  formData.plannedFixTime = null
+}
+
+// 监听数据变化，更新内部数据
+watch(() => props.data, (newData) => {
+  if (newData) {
+    Object.assign(vulnerabilityData, {
+      id: newData.id || vulnerabilityData.id,
+      type: newData.type || vulnerabilityData.type,
+      createTime: newData.createTime || vulnerabilityData.createTime,
+      cveNumber: newData.cveNumber || vulnerabilityData.cveNumber,
+      name: newData.name || vulnerabilityData.name,
+      detail: newData.detail || vulnerabilityData.detail,
+      fixMethod: newData.fixMethod || vulnerabilityData.fixMethod,
+      referenceLink: newData.referenceLink || vulnerabilityData.referenceLink
+    })
+    
+    Object.assign(businessData, {
+      assetName: newData.assetName || businessData.assetName,
+      environment: newData.environment || businessData.environment
+    })
+    
+    Object.assign(handleData, {
+      isPublished: newData.isPublished !== undefined ? newData.isPublished : handleData.isPublished,
+      lastCheckTime: newData.lastCheckTime || handleData.lastCheckTime,
+      owner: newData.owner || handleData.owner,
+      result: newData.result || handleData.result
+    })
+  }
+}, { deep: true })
+</script>
+
+<style scoped>
+.vulnerability-detail {
+  padding: 10px 0;
+}
+
+.section {
+  margin-bottom: 16px;
+}
+
+.section-title {
+  margin-bottom: 16px;
+}
+
+.title-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background-color: #1890ff;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 2px;
+}
+
+.footer-buttons {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+  text-align: center;
+}
+
+:deep(.ant-descriptions-item-label) {
+  font-weight: normal;
+  color: #666;
+}
+
+:deep(.ant-descriptions-item-content) {
+  color: #333;
+}
+
+:deep(.ant-form-item) {
+  margin-bottom: 16px;
+}
+
+:deep(.ant-modal-header) {
+  background: #fafafa;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+:deep(.ant-modal-title) {
+  font-size: 16px;
+  font-weight: 500;
+}
+</style>
