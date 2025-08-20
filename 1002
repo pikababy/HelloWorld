@@ -1,0 +1,201 @@
+<template>
+  <div class="vulnerability-page">
+    <!-- 表格展示漏洞列表 -->
+    <a-table 
+      :columns="columns" 
+      :data-source="dataSource"
+      :pagination="pagination"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'action'">
+          <a-button type="link" @click="showDetail(record)">查看详情</a-button>
+        </template>
+        <template v-else-if="column.key === 'status'">
+          <a-tag :color="getStatusColor(record.status)">
+            {{ record.status }}
+          </a-tag>
+        </template>
+      </template>
+    </a-table>
+
+    <!-- 漏洞详情弹窗 -->
+    <VulnerabilityDetailModal
+      v-model="modalVisible"
+      :data="currentVulnerability"
+      @submit="handleSubmit"
+      @close="handleClose"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive } from 'vue'
+import { message } from 'ant-design-vue'
+import VulnerabilityDetailModal from './VulnerabilityDetailModal.vue' // 引入上面创建的组件
+
+// 表格列配置
+const columns = [
+  {
+    title: '漏洞ID',
+    dataIndex: 'id',
+    key: 'id',
+    width: 150
+  },
+  {
+    title: '漏洞名称',
+    dataIndex: 'name',
+    key: 'name',
+    width: 200
+  },
+  {
+    title: '漏洞类型',
+    dataIndex: 'type',
+    key: 'type',
+    width: 120
+  },
+  {
+    title: 'CVE编号',
+    dataIndex: 'cveNumber',
+    key: 'cveNumber',
+    width: 150
+  },
+  {
+    title: '状态',
+    dataIndex: 'status',
+    key: 'status',
+    width: 100
+  },
+  {
+    title: '创建时间',
+    dataIndex: 'createTime',
+    key: 'createTime',
+    width: 180
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: 100,
+    fixed: 'right'
+  }
+]
+
+// 表格数据
+const dataSource = ref([
+  {
+    key: '1',
+    id: 'VUL-2024-0001',
+    name: 'SQL注入漏洞',
+    type: 'SQL注入',
+    cveNumber: 'CVE-2024-0001',
+    status: '待处理',
+    createTime: '2024-01-15 10:30:00',
+    detail: 'SQL注入漏洞可能导致数据库信息泄露，攻击者可以通过构造恶意SQL语句获取敏感数据。',
+    fixMethod: '1. 使用参数化查询\n2. 对用户输入进行严格验证\n3. 使用存储过程\n4. 最小化数据库权限',
+    referenceLink: 'https://owasp.org/www-community/attacks/SQL_Injection',
+    assetName: '用户管理系统',
+    environment: '生产环境',
+    isPublished: false,
+    lastCheckTime: '2024-01-20 15:00:00',
+    owner: 'IT安全部门'
+  },
+  {
+    key: '2',
+    id: 'VUL-2024-0002',
+    name: 'XSS跨站脚本攻击',
+    type: 'XSS',
+    cveNumber: 'CVE-2024-0002',
+    status: '已修复',
+    createTime: '2024-01-16 14:20:00',
+    detail: 'XSS漏洞允许攻击者在用户浏览器中执行恶意脚本，可能导致会话劫持、钓鱼攻击等。',
+    fixMethod: '1. 对所有用户输入进行HTML编码\n2. 使用CSP内容安全策略\n3. 验证和清理用户输入',
+    referenceLink: 'https://owasp.org/www-community/attacks/xss/',
+    assetName: '内容管理系统',
+    environment: '测试环境',
+    isPublished: true,
+    lastCheckTime: '2024-01-21 09:00:00',
+    owner: '开发部门'
+  },
+  {
+    key: '3',
+    id: 'VUL-2024-0003',
+    name: '文件上传漏洞',
+    type: '文件上传',
+    cveNumber: 'CVE-2024-0003',
+    status: '误报',
+    createTime: '2024-01-17 09:15:00',
+    detail: '不当的文件上传验证可能允许攻击者上传恶意文件，导致服务器被入侵。',
+    fixMethod: '1. 严格验证文件类型\n2. 限制文件大小\n3. 重命名上传文件\n4. 存储在非Web目录',
+    referenceLink: 'https://owasp.org/www-community/vulnerabilities/Unrestricted_File_Upload',
+    assetName: '文档管理系统',
+    environment: '开发环境',
+    isPublished: false,
+    lastCheckTime: '2024-01-22 11:30:00',
+    owner: '运维部门'
+  }
+])
+
+// 分页配置
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 3,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  showTotal: (total) => `共 ${total} 条`
+})
+
+// 弹窗显示状态
+const modalVisible = ref(false)
+// 当前选中的漏洞数据
+const currentVulnerability = ref({})
+
+// 获取状态颜色
+const getStatusColor = (status) => {
+  const colorMap = {
+    '待处理': 'orange',
+    '已修复': 'green',
+    '误报': 'blue',
+    '忽略': 'gray'
+  }
+  return colorMap[status] || 'default'
+}
+
+// 显示详情弹窗
+const showDetail = (record) => {
+  currentVulnerability.value = { ...record }
+  modalVisible.value = true
+}
+
+// 处理提交
+const handleSubmit = (data) => {
+  console.log('提交的数据：', data)
+  message.success('漏洞信息已更新')
+  
+  // 更新表格中的数据
+  const index = dataSource.value.findIndex(item => item.id === data.id)
+  if (index !== -1) {
+    // 根据处理结果更新状态
+    const statusMap = {
+      'fixed': '已修复',
+      'ignored': '忽略',
+      'false-positive': '误报',
+      'pending': '待处理'
+    }
+    dataSource.value[index].status = statusMap[data.handleResult] || dataSource.value[index].status
+  }
+}
+
+// 处理关闭
+const handleClose = () => {
+  console.log('弹窗已关闭')
+  modalVisible.value = false
+}
+</script>
+
+<style scoped>
+.vulnerability-page {
+  padding: 20px;
+  background: #fff;
+  min-height: 500px;
+}
+</style>
