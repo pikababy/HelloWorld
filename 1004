@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安全检测信息单</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.2.3/reset.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.2.3/antd.min.js"></script>
+    <style>
+        body {
+            background: #f0f2f5;
+            padding: 20px;
+            margin: 0;
+        }
+        .form-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+        }
+        .form-title {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .department-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .form-actions {
+            margin-top: 32px;
+            text-align: right;
+            padding-top: 24px;
+            border-top: 1px solid #f0f0f0;
+        }
+        .add-app-btn {
+            margin-left: 8px;
+        }
+        .required-mark {
+            color: #ff4d4f;
+            margin-right: 4px;
+        }
+        .ant-form-item-label > label::before {
+            content: '*';
+            display: inline-block;
+            margin-right: 4px;
+            color: #ff4d4f;
+            font-size: 14px;
+            font-family: SimSun, sans-serif;
+            line-height: 1;
+        }
+        .ant-form-item-label > label.no-required::before {
+            content: '';
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="form-container">
+            <h2 class="form-title">填写安全检测信息单</h2>
+            
+            <a-form
+                :model="formState"
+                :label-col="{ span: 6 }"
+                :wrapper-col="{ span: 18 }"
+                autocomplete="off"
+            >
+                <!-- 系统名称 -->
+                <a-form-item label="系统名称" name="systemName" :rules="[{ required: true, message: '请选择系统名称' }]">
+                    <a-row :gutter="8">
+                        <a-col :span="20">
+                            <a-select
+                                v-model:value="formState.systemName"
+                                placeholder="--请选择--"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="system1">系统1</a-select-option>
+                                <a-select-option value="system2">系统2</a-select-option>
+                                <a-select-option value="system3">系统3</a-select-option>
+                            </a-select>
+                        </a-col>
+                        <a-col :span="4">
+                            <a-button type="primary" @click="handleAddApp">
+                                <plus-outlined /> 新增应用
+                            </a-button>
+                        </a-col>
+                    </a-row>
+                </a-form-item>
+
+                <!-- 部门信息 -->
+                <div class="department-row">
+                    <a-form-item label="业务主管部门" :label-col="{ span: 10 }" :wrapper-col="{ span: 14 }">
+                        <a-input v-model:value="formState.businessDept" placeholder="请输入" />
+                    </a-form-item>
+                    <a-form-item label="系统运营部门" :label-col="{ span: 10 }" :wrapper-col="{ span: 14 }">
+                        <a-input v-model:value="formState.operationDept" placeholder="请输入" />
+                    </a-form-item>
+                    <a-form-item label="系统建设部门" :label-col="{ span: 10 }" :wrapper-col="{ span: 14 }">
+                        <a-input v-model:value="formState.constructionDept" placeholder="请输入" />
+                    </a-form-item>
+                    <a-form-item label="系统运维部门" :label-col="{ span: 10 }" :wrapper-col="{ span: 14 }">
+                        <a-input v-model:value="formState.maintenanceDept" placeholder="请输入" />
+                    </a-form-item>
+                </div>
+
+                <!-- 平台管理员和安全领导 -->
+                <a-row :gutter="16">
+                    <a-col :span="12">
+                        <a-form-item label="请选择平台管理员" name="platformAdmin" :rules="[{ required: true, message: '请选择平台管理员' }]">
+                            <a-select
+                                v-model:value="formState.platformAdmin"
+                                placeholder="请选择需要通知平台管理员"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="admin1">管理员1</a-select-option>
+                                <a-select-option value="admin2">管理员2</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                        <a-form-item label="请选择安全领导" name="securityLeader" :rules="[{ required: true, message: '请选择安全领导' }]">
+                            <a-select
+                                v-model:value="formState.securityLeader"
+                                placeholder="请选择需要审批得安全领导"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="leader1">领导1</a-select-option>
+                                <a-select-option value="leader2">领导2</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+                </a-row>
+
+                <!-- 条线领导和申请类型 -->
+                <a-row :gutter="16">
+                    <a-col :span="12">
+                        <a-form-item label="请选择条线领导" name="lineLeader" :rules="[{ required: true, message: '请选择条线领导' }]">
+                            <a-select
+                                v-model:value="formState.lineLeader"
+                                placeholder="请选择需要审批得条线领导"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="line1">条线领导1</a-select-option>
+                                <a-select-option value="line2">条线领导2</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                        <a-form-item label="申请类型" name="applicationType" :rules="[{ required: true, message: '请选择申请类型' }]">
+                            <a-select
+                                v-model:value="formState.applicationType"
+                                placeholder="--请选择--"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="type1">类型1</a-select-option>
+                                <a-select-option value="type2">类型2</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+                </a-row>
+
+                <!-- 检测类型和检测环境 -->
+                <a-row :gutter="16">
+                    <a-col :span="12">
+                        <a-form-item label="检测类型" name="detectionType" :rules="[{ required: true, message: '请选择检测类型' }]">
+                            <a-select
+                                v-model:value="formState.detectionType"
+                                placeholder="--请选择--"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="detection1">渗透测试</a-select-option>
+                                <a-select-option value="detection2">漏洞扫描</a-select-option>
+                                <a-select-option value="detection3">代码审计</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+                    <a-col :span="12">
+                        <a-form-item label="检测环境" name="detectionEnv" :rules="[{ required: true, message: '请选择检测环境' }]">
+                            <a-select
+                                v-model:value="formState.detectionEnv"
+                                placeholder="--请选择--"
+                                style="width: 100%"
+                            >
+                                <a-select-option value="http://172.19.244.63:80">http://172.19.244.63:80</a-select-option>
+                                <a-select-option value="env2">测试环境</a-select-option>
+                                <a-select-option value="env3">生产环境</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </a-col>
+                </a-row>
+
+                <!-- 系统存在的风险 -->
+                <a-form-item label="系统存在的风险" name="systemRisk" :rules="[{ required: true, message: '请输入系统存在的风险' }]">
+                    <a-textarea
+                        v-model:value="formState.systemRisk"
+                        placeholder="请输入系统存在的风险"
+                        :rows="4"
+                        style="width: 100%"
+                    />
+                </a-form-item>
+
+                <!-- 描述 -->
+                <a-form-item label="描述" name="description" :rules="[{ required: true, message: '请输入描述信息' }]">
+                    <a-textarea
+                        v-model:value="formState.description"
+                        placeholder="请填写被测试系统的IP地址，URL登陆入口及系统基本信息"
+                        :rows="6"
+                        style="width: 100%"
+                    />
+                </a-form-item>
+
+                <!-- 按钮 -->
+                <a-form-item :wrapper-col="{ offset: 0, span: 24 }">
+                    <div class="form-actions">
+                        <a-button @click="handleBack" style="margin-right: 8px">
+                            <rollback-outlined /> 返回
+                        </a-button>
+                        <a-button type="primary" @click="handleSubmit">
+                            <check-outlined /> 提交
+                        </a-button>
+                    </div>
+                </a-form-item>
+            </a-form>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive } = Vue;
+        const { message } = antd;
+
+        createApp({
+            setup() {
+                const formState = reactive({
+                    systemName: undefined,
+                    businessDept: '',
+                    operationDept: '',
+                    constructionDept: '',
+                    maintenanceDept: '',
+                    platformAdmin: undefined,
+                    securityLeader: undefined,
+                    lineLeader: undefined,
+                    applicationType: undefined,
+                    detectionType: undefined,
+                    detectionEnv: 'http://172.19.244.63:80',
+                    systemRisk: '',
+                    description: ''
+                });
+
+                const handleAddApp = () => {
+                    message.info('新增应用功能待实现');
+                };
+
+                const handleBack = () => {
+                    message.info('返回上一页');
+                };
+
+                const handleSubmit = () => {
+                    // 验证必填项
+                    const requiredFields = [
+                        { field: 'systemName', message: '请选择系统名称' },
+                        { field: 'platformAdmin', message: '请选择平台管理员' },
+                        { field: 'securityLeader', message: '请选择安全领导' },
+                        { field: 'lineLeader', message: '请选择条线领导' },
+                        { field: 'applicationType', message: '请选择申请类型' },
+                        { field: 'detectionType', message: '请选择检测类型' },
+                        { field: 'detectionEnv', message: '请选择检测环境' },
+                        { field: 'systemRisk', message: '请输入系统存在的风险' },
+                        { field: 'description', message: '请输入描述信息' }
+                    ];
+
+                    for (let item of requiredFields) {
+                        if (!formState[item.field]) {
+                            message.error(item.message);
+                            return;
+                        }
+                    }
+
+                    message.success('提交成功！');
+                    console.log('表单数据：', formState);
+                };
+
+                return {
+                    formState,
+                    handleAddApp,
+                    handleBack,
+                    handleSubmit
+                };
+            }
+        }).use(antd).mount('#app');
+    </script>
+</body>
+</html>
