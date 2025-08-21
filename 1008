@@ -1,0 +1,177 @@
+<template>
+  <div class="security-process-container">
+    <!-- 页面标题 -->
+    <div class="page-header">
+      <h2 class="page-title">安全流程</h2>
+    </div>
+
+    <!-- 菜单卡片区域 -->
+    <div class="menu-cards-wrapper">
+      <a-row :gutter="[24, 24]" justify="center">
+        <a-col :xs="24" :sm="8" :md="6" :lg="6" :xl="5">
+          <div class="menu-card" @click="handleMenuClick('security-check')">
+            <div class="card-content">
+              <div class="icon-wrapper security-check-icon">
+                <Icon icon="ant-design:safety-certificate-outlined" :size="48" />
+              </div>
+              <div class="card-title">发起安全检测流程</div>
+            </div>
+          </div>
+        </a-col>
+
+        <a-col :xs="24" :sm="8" :md="6" :lg="6" :xl="5">
+          <div class="menu-card" @click="handleMenuClick('vulnerability-review')">
+            <div class="card-content">
+              <div class="icon-wrapper vulnerability-icon">
+                <Icon icon="ant-design:search-outlined" :size="48" />
+              </div>
+              <div class="card-title">发起第二方漏洞审查流程</div>
+            </div>
+          </div>
+        </a-col>
+
+        <a-col :xs="24" :sm="8" :md="6" :lg="6" :xl="5">
+          <div class="menu-card" @click="handleMenuClick('bug-handling')">
+            <div class="card-content">
+              <div class="icon-wrapper bug-icon">
+                <Icon icon="ant-design:bug-outlined" :size="48" />
+              </div>
+              <div class="card-title">发起一般漏洞处理流程</div>
+            </div>
+          </div>
+        </a-col>
+      </a-row>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { Row, Col, message } from 'ant-design-vue';
+import { Icon } from '@iconify/vue';
+import { useRouter } from 'vue-router';
+
+const ARow = Row;
+const ACol = Col;
+
+const router = useRouter();
+
+// 处理菜单点击事件
+const handleMenuClick = (type: string) => {
+  switch (type) {
+    case 'security-check':
+      message.info('正在进入安全检测流程...');
+      // router.push('/security/check');
+      break;
+    case 'vulnerability-review':
+      message.info('正在进入第二方漏洞审查流程...');
+      // router.push('/security/vulnerability-review');
+      break;
+    case 'bug-handling':
+      message.info('正在进入一般漏洞处理流程...');
+      // router.push('/security/bug-handling');
+      break;
+    default:
+      break;
+  }
+};
+</script>
+
+<style lang="less" scoped>
+.security-process-container {
+  min-height: calc(100vh - 100px);
+  background: #f0f2f5;
+  padding: 24px;
+
+  .page-header {
+    margin-bottom: 32px;
+    
+    .page-title {
+      font-size: 20px;
+      font-weight: 500;
+      color: #333;
+      margin: 0;
+    }
+  }
+
+  .menu-cards-wrapper {
+    margin-top: 60px;
+  }
+
+  .menu-card {
+    background: #fff;
+    border-radius: 8px;
+    padding: 32px 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    min-height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+      
+      .icon-wrapper {
+        transform: scale(1.1);
+      }
+    }
+
+    .card-content {
+      text-align: center;
+      
+      .icon-wrapper {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        margin-bottom: 16px;
+        transition: transform 0.3s ease;
+        
+        &.security-check-icon {
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          color: #fff;
+        }
+        
+        &.vulnerability-icon {
+          background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+          color: #fff;
+        }
+        
+        &.bug-icon {
+          background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+          color: #fff;
+        }
+      }
+      
+      .card-title {
+        font-size: 14px;
+        color: #333;
+        font-weight: 400;
+        line-height: 1.5;
+        max-width: 150px;
+        margin: 0 auto;
+      }
+    }
+  }
+}
+
+// 响应式适配
+@media (max-width: 768px) {
+  .security-process-container {
+    padding: 16px;
+    
+    .menu-cards-wrapper {
+      margin-top: 32px;
+    }
+    
+    .menu-card {
+      padding: 24px 16px;
+      min-height: 150px;
+    }
+  }
+}
+</style>
