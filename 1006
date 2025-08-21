@@ -1,0 +1,405 @@
+<template>
+  <div class="security-detection-form">
+    <div class="form-header">
+      <h2 class="form-title">填写安全检测信息单</h2>
+    </div>
+    
+    <div class="form-content">
+      <!-- 系统名称行 -->
+      <div class="form-row system-name-row">
+        <label class="form-label required">系统名称</label>
+        <div class="form-value">
+          <a-select
+            v-model:value="formState.systemName"
+            placeholder="--请选择--"
+            class="system-select"
+          >
+            <a-select-option value="system1">系统1</a-select-option>
+            <a-select-option value="system2">系统2</a-select-option>
+            <a-select-option value="system3">系统3</a-select-option>
+          </a-select>
+          <a-button type="primary" class="add-btn">
+            <template #icon><PlusOutlined /></template>
+            新增应用
+          </a-button>
+        </div>
+      </div>
+
+      <!-- 四个部门信息行 -->
+      <div class="departments-row">
+        <div class="dept-item">
+          <label class="dept-label">业务主管部门</label>
+          <a-input v-model:value="formState.businessDept" />
+        </div>
+        <div class="dept-item">
+          <label class="dept-label">系统运营部门</label>
+          <a-input v-model:value="formState.operationDept" />
+        </div>
+        <div class="dept-item">
+          <label class="dept-label">系统建设部门</label>
+          <a-input v-model:value="formState.constructionDept" />
+        </div>
+        <div class="dept-item">
+          <label class="dept-label">系统运维部门</label>
+          <a-input v-model:value="formState.maintenanceDept" />
+        </div>
+      </div>
+
+      <!-- 两列表单区域 -->
+      <div class="two-columns">
+        <!-- 左列 -->
+        <div class="column">
+          <div class="form-row">
+            <label class="form-label required">请选择平台管理员</label>
+            <div class="form-value">
+              <a-select
+                v-model:value="formState.platformAdmin"
+                placeholder="请选择需要通知平台管理员"
+                style="width: 100%"
+              >
+                <a-select-option value="admin1">管理员1</a-select-option>
+                <a-select-option value="admin2">管理员2</a-select-option>
+              </a-select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label required">请选择条线领导</label>
+            <div class="form-value">
+              <a-select
+                v-model:value="formState.lineLeader"
+                placeholder="请选择需要审批得条线领导"
+                style="width: 100%"
+              >
+                <a-select-option value="line1">条线领导1</a-select-option>
+                <a-select-option value="line2">条线领导2</a-select-option>
+              </a-select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label required">检测类型</label>
+            <div class="form-value">
+              <a-select
+                v-model:value="formState.detectionType"
+                placeholder="--请选择--"
+                style="width: 100%"
+              >
+                <a-select-option value="penetration">渗透测试</a-select-option>
+                <a-select-option value="vulnerability">漏洞扫描</a-select-option>
+                <a-select-option value="code">代码审计</a-select-option>
+              </a-select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列 -->
+        <div class="column">
+          <div class="form-row">
+            <label class="form-label required">请选择安全领导</label>
+            <div class="form-value">
+              <a-select
+                v-model:value="formState.securityLeader"
+                placeholder="请选择需要审批得安全领导"
+                style="width: 100%"
+              >
+                <a-select-option value="leader1">安全领导1</a-select-option>
+                <a-select-option value="leader2">安全领导2</a-select-option>
+              </a-select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label required">申请类型</label>
+            <div class="form-value">
+              <a-select
+                v-model:value="formState.applicationType"
+                placeholder="--请选择--"
+                style="width: 100%"
+              >
+                <a-select-option value="type1">安全测试</a-select-option>
+                <a-select-option value="type2">漏洞修复</a-select-option>
+              </a-select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label class="form-label required">检测环境</label>
+            <div class="form-value">
+              <a-select
+                v-model:value="formState.detectionEnv"
+                placeholder="--请选择--"
+                style="width: 100%"
+              >
+                <a-select-option value="http://172.19.244.63:80">
+                  http://172.19.244.63:80
+                </a-select-option>
+                <a-select-option value="test">测试环境</a-select-option>
+                <a-select-option value="prod">生产环境</a-select-option>
+              </a-select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 系统存在的风险 -->
+      <div class="form-row full-width">
+        <label class="form-label required">系统存在的风险</label>
+        <div class="form-value">
+          <a-textarea
+            v-model:value="formState.systemRisk"
+            :rows="3"
+            :auto-size="{ minRows: 3, maxRows: 5 }"
+          />
+        </div>
+      </div>
+
+      <!-- 描述 -->
+      <div class="form-row full-width">
+        <label class="form-label required">描述</label>
+        <div class="form-value">
+          <a-textarea
+            v-model:value="formState.description"
+            placeholder="请填写被测试系统的IP地址，URL登陆入口及系统基本信息"
+            :rows="5"
+            :auto-size="{ minRows: 5, maxRows: 8 }"
+          />
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <div class="form-actions">
+        <a-button @click="handleBack">
+          <template #icon><RollbackOutlined /></template>
+          返回
+        </a-button>
+        <a-button type="primary" @click="handleSubmit" style="margin-left: 8px">
+          <template #icon><CheckOutlined /></template>
+          提交
+        </a-button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { reactive } from 'vue';
+import { message } from 'ant-design-vue';
+import {
+  PlusOutlined,
+  RollbackOutlined,
+  CheckOutlined,
+} from '@ant-design/icons-vue';
+
+interface FormState {
+  systemName: string | undefined;
+  businessDept: string;
+  operationDept: string;
+  constructionDept: string;
+  maintenanceDept: string;
+  platformAdmin: string | undefined;
+  securityLeader: string | undefined;
+  lineLeader: string | undefined;
+  applicationType: string | undefined;
+  detectionType: string | undefined;
+  detectionEnv: string;
+  systemRisk: string;
+  description: string;
+}
+
+// 表单数据
+const formState = reactive<FormState>({
+  systemName: undefined,
+  businessDept: '',
+  operationDept: '',
+  constructionDept: '',
+  maintenanceDept: '',
+  platformAdmin: undefined,
+  securityLeader: undefined,
+  lineLeader: undefined,
+  applicationType: undefined,
+  detectionType: undefined,
+  detectionEnv: 'http://172.19.244.63:80',
+  systemRisk: '',
+  description: '',
+});
+
+// 返回
+const handleBack = () => {
+  message.info('返回上一页');
+  // 实际使用：router.back();
+};
+
+// 提交表单
+const handleSubmit = () => {
+  // 验证必填项
+  const requiredFields = [
+    { field: 'systemName', label: '系统名称' },
+    { field: 'platformAdmin', label: '平台管理员' },
+    { field: 'securityLeader', label: '安全领导' },
+    { field: 'lineLeader', label: '条线领导' },
+    { field: 'applicationType', label: '申请类型' },
+    { field: 'detectionType', label: '检测类型' },
+    { field: 'detectionEnv', label: '检测环境' },
+    { field: 'systemRisk', label: '系统存在的风险' },
+    { field: 'description', label: '描述' }
+  ];
+
+  for (const item of requiredFields) {
+    if (!formState[item.field as keyof FormState]) {
+      message.error(`请填写${item.label}`);
+      return;
+    }
+  }
+
+  message.success('提交成功！');
+  console.log('表单数据：', formState);
+  
+  // 实际使用时调用API
+  // await api.submitSecurityForm(formState);
+};
+</script>
+
+<style scoped lang="less">
+.security-detection-form {
+  background: #fff;
+  min-height: 100vh;
+  
+  .form-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #e8e8e8;
+    
+    .form-title {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 500;
+      color: #000;
+    }
+  }
+  
+  .form-content {
+    padding: 24px;
+  }
+  
+  // 表单行基础样式
+  .form-row {
+    display: flex;
+    align-items: flex-start;
+    margin-bottom: 20px;
+    
+    .form-label {
+      min-width: 120px;
+      padding-right: 12px;
+      text-align: right;
+      color: rgba(0, 0, 0, 0.85);
+      font-size: 14px;
+      line-height: 32px;
+      
+      // 必填项星号
+      &.required::before {
+        content: '*';
+        color: #ff4d4f;
+        margin-right: 4px;
+        font-family: SimSun, sans-serif;
+      }
+    }
+    
+    .form-value {
+      flex: 1;
+      max-width: 600px;
+    }
+  }
+  
+  // 系统名称行特殊样式
+  .system-name-row {
+    .form-value {
+      display: flex;
+      gap: 12px;
+      
+      .system-select {
+        width: 300px;
+      }
+      
+      .add-btn {
+        background: #52c41a;
+        border-color: #52c41a;
+        
+        &:hover {
+          background: #73d13d;
+          border-color: #73d13d;
+        }
+      }
+    }
+  }
+  
+  // 四个部门的网格布局
+  .departments-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+    
+    .dept-item {
+      display: flex;
+      align-items: center;
+      
+      .dept-label {
+        min-width: 85px;
+        text-align: right;
+        padding-right: 8px;
+        font-size: 14px;
+        color: rgba(0, 0, 0, 0.85);
+        white-space: nowrap;
+      }
+      
+      :deep(.ant-input) {
+        flex: 1;
+      }
+    }
+  }
+  
+  // 两列布局
+  .two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 24px;
+    
+    .column {
+      .form-row {
+        .form-label {
+          min-width: 140px;
+        }
+      }
+    }
+  }
+  
+  // 全宽表单项
+  .form-row.full-width {
+    .form-value {
+      max-width: none;
+    }
+  }
+  
+  // 操作按钮
+  .form-actions {
+    margin-top: 32px;
+    padding-top: 24px;
+    text-align: right;
+  }
+  
+  // Ant Design 组件样式调整
+  :deep(.ant-select-selector),
+  :deep(.ant-input) {
+    height: 32px !important;
+  }
+  
+  :deep(.ant-select-selection-placeholder) {
+    color: #bfbfbf;
+  }
+  
+  :deep(.ant-btn) {
+    height: 32px;
+    padding: 4px 15px;
+  }
+}
+</style>
