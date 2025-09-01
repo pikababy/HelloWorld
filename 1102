@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>填写漏洞排查信息单</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/reset.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/antd.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/antd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: #f0f2f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        
+        .page-container {
+            background: white;
+            min-height: 100vh;
+        }
+        
+        .breadcrumb-header {
+            padding: 12px 24px;
+            background: white;
+            border-bottom: 1px solid #e8e8e8;
+        }
+        
+        .breadcrumb-header .ant-breadcrumb {
+            font-size: 14px;
+        }
+        
+        .page-title {
+            padding: 16px 24px 8px 24px;
+            font-size: 20px;
+            font-weight: 500;
+            color: rgba(0, 0, 0, 0.85);
+        }
+        
+        .form-container {
+            padding: 16px 24px 24px 24px;
+        }
+        
+        .ant-form {
+            max-width: 100%;
+        }
+        
+        .ant-form-item {
+            margin-bottom: 20px;
+        }
+        
+        .ant-form-item-label {
+            text-align: right;
+            padding-right: 12px;
+        }
+        
+        .ant-form-item-label > label {
+            color: rgba(0, 0, 0, 0.85);
+            font-size: 14px;
+        }
+        
+        .ant-form-item-label > label::before {
+            content: '*';
+            display: inline-block;
+            margin-right: 4px;
+            color: #ff4d4f;
+            font-size: 14px;
+            font-family: SimSun, sans-serif;
+            line-height: 1;
+        }
+        
+        .ant-select,
+        .ant-input,
+        .ant-input-search {
+            width: 100%;
+        }
+        
+        .ant-select-selector {
+            height: 32px !important;
+        }
+        
+        .ant-input {
+            height: 32px;
+        }
+        
+        .asset-checkbox-container {
+            background: #fafafa;
+            border: 1px solid #d9d9d9;
+            border-radius: 2px;
+            padding: 12px;
+            min-height: 80px;
+            width: 100%;
+        }
+        
+        .asset-checkbox-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 40px;
+        }
+        
+        .asset-checkbox-item {
+            min-width: 150px;
+        }
+        
+        .asset-empty {
+            color: rgba(0, 0, 0, 0.25);
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .ant-input-textarea textarea {
+            min-height: 120px !important;
+            resize: vertical;
+        }
+        
+        .form-footer {
+            margin-top: 24px;
+            padding-top: 24px;
+            text-align: right;
+        }
+        
+        .form-footer .ant-btn {
+            margin-left: 8px;
+        }
+        
+        /* 调整表单布局 */
+        @media (min-width: 768px) {
+            .ant-form-item-label {
+                flex: 0 0 120px;
+                max-width: 120px;
+            }
+            
+            .ant-form-item-control {
+                flex: 1 1 auto;
+                max-width: calc(100% - 120px);
+            }
+            
+            .two-column-row {
+                display: flex;
+                gap: 0;
+            }
+            
+            .two-column-row .ant-form-item {
+                flex: 1;
+                max-width: 50%;
+            }
+            
+            .two-column-row .ant-form-item:first-child {
+                padding-right: 12px;
+            }
+            
+            .two-column-row .ant-form-item:last-child {
+                padding-left: 12px;
+            }
+        }
+        
+        /* 自定义下拉框占位符颜色 */
+        .ant-select-selection-placeholder {
+            color: rgba(0, 0, 0, 0.25);
+        }
+        
+        .search-input-loading {
+            position: absolute;
+            right: 11px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1;
+        }
+        
+        .search-input-wrapper {
+            position: relative;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="page-container">
+            <!-- 面包屑导航 -->
+            <div class="breadcrumb-header">
+                <a-breadcrumb>
+                    <a-breadcrumb-item>发起流程</a-breadcrumb-item>
+                    <a-breadcrumb-item>新建漏洞排查</a-breadcrumb-item>
+                </a-breadcrumb>
+            </div>
+            
+            <!-- 页面标题 -->
+            <div class="page-title">
+                填写漏洞排查信息单
+            </div>
+            
+            <!-- 表单内容 -->
+            <div class="form-container">
+                <a-form
+                    :model="formState"
+                    :label-col="{ span: 24 }"
+                    :wrapper-col="{ span: 24 }"
+                    layout="horizontal"
+                    ref="formRef"
+                >
+                    <!-- 第一行：漏洞类型 和 模糊搜索 -->
+                    <div class="two-column-row">
+                        <a-form-item label="漏洞类型" name="vulnerabilityType" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+                            <a-select 
+                                v-model:value="formState.vulnerabilityType"
+                                placeholder="--请选择--"
+                                @change="handleVulnerabilityTypeChange"
+                            >
+                                <a-select-option value="network">网络设备漏洞</a-select-option>
+                                <a-select-option value="system">系统漏洞</a-select-option>
+                                <a-select-option value="application">应用漏洞</a-select-option>
+                                <a-select-option value="database">数据库漏洞</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                        
+                        <a-form-item label="网络设备漏洞模糊搜索" name="deviceSearch" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+                            <div class="search-input-wrapper">
+                                <a-input 
+                                    v-model:value="searchKeyword"
+                                    placeholder=""
+                                    @input="handleSearch"
+                                    :disabled="formState.vulnerabilityType !== 'network'"
+                                />
+                                <a-spin v-if="searching" size="small" class="search-input-loading" />
+                            </div>
+                        </a-form-item>
+                    </div>
+                    
+                    <!-- 网络设备资产名称 -->
+                    <a-form-item label="网络设备资产名称" name="assetNames" :label-col="{ span: 3 }" :wrapper-col="{ span: 21 }">
+                        <div class="asset-checkbox-container">
+                            <div v-if="showAssetCheckbox && filteredAssets.length > 0" class="asset-checkbox-group">
+                                <div v-for="asset in filteredAssets" :key="asset.value" class="asset-checkbox-item">
+                                    <a-checkbox :value="asset.value" v-model:checked="asset.checked">
+                                        {{ asset.label }}
+                                    </a-checkbox>
+                                </div>
+                            </div>
+                            <div v-else-if="showAssetCheckbox && formState.vulnerabilityType === 'network'" class="asset-empty">
+                                暂无数据
+                            </div>
+                            <div v-else class="asset-empty">
+                                
+                            </div>
+                        </div>
+                    </a-form-item>
+                    
+                    <!-- 第二行：人员选择 和 漏洞级别 -->
+                    <div class="two-column-row">
+                        <a-form-item label="人员选择" name="personnel" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+                            <a-select 
+                                v-model:value="formState.personnel"
+                                placeholder="--请选择--"
+                            >
+                                <a-select-option value="operation">运维</a-select-option>
+                                <a-select-option value="development">开发</a-select-option>
+                                <a-select-option value="testing">测试</a-select-option>
+                                <a-select-option value="security">安全</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                        
+                        <a-form-item label="漏洞级别" name="level" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }">
+                            <a-select 
+                                v-model:value="formState.level"
+                                placeholder="--请选择--"
+                            >
+                                <a-select-option value="critical">严重</a-select-option>
+                                <a-select-option value="high">高危</a-select-option>
+                                <a-select-option value="medium">中危</a-select-option>
+                                <a-select-option value="low">低危</a-select-option>
+                            </a-select>
+                        </a-form-item>
+                    </div>
+                    
+                    <!-- 审核人员 -->
+                    <a-form-item label="审核人员" name="reviewer" :label-col="{ span: 3 }" :wrapper-col="{ span: 21 }">
+                        <a-select 
+                            v-model:value="formState.reviewer"
+                            placeholder="请选择处理人"
+                            show-search
+                            :filter-option="filterOption"
+                        >
+                            <a-select-option value="zhangsan">张三</a-select-option>
+                            <a-select-option value="lisi">李四</a-select-option>
+                            <a-select-option value="wangwu">王五</a-select-option>
+                            <a-select-option value="zhaoliu">赵六</a-select-option>
+                        </a-select>
+                    </a-form-item>
+                    
+                    <!-- 漏洞描述 -->
+                    <a-form-item label="漏洞描述" name="description" :label-col="{ span: 3 }" :wrapper-col="{ span: 21 }">
+                        <a-textarea 
+                            v-model:value="formState.description"
+                            placeholder=""
+                            :auto-size="{ minRows: 6, maxRows: 10 }"
+                        />
+                    </a-form-item>
+                    
+                    <!-- 底部按钮 -->
+                    <div class="form-footer">
+                        <a-button @click="handleCancel">
+                            ← 返回
+                        </a-button>
+                        <a-button type="primary" @click="handleSubmit">
+                            ← 提交
+                        </a-button>
+                    </div>
+                </a-form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, watch } = Vue;
+        const { message } = antd;
+        
+        createApp({
+            setup() {
+                const formRef = ref(null);
+                const searchKeyword = ref('');
+                const searching = ref(false);
+                const showAssetCheckbox = ref(false);
+                
+                // 所有可用的网络设备资产
+                const allAssets = ref([
+                    { value: 'PSZ18441BAR', label: 'PSZ18441BAR', checked: false },
+                    { value: 'PSZ18431F3U', label: 'PSZ18431F3U', checked: false },
+                    { value: 'PSZ18421ABC', label: 'PSZ18421ABC', checked: false },
+                    { value: 'PSZ18411DEF', label: 'PSZ18411DEF', checked: false },
+                    { value: 'PSW20231GHI', label: 'PSW20231GHI', checked: false },
+                    { value: 'PSW20241JKL', label: 'PSW20241JKL', checked: false },
+                    { value: 'PSR10001MNO', label: 'PSR10001MNO', checked: false },
+                    { value: 'PSR10002PQR', label: 'PSR10002PQR', checked: false },
+                    { value: 'PST30001STU', label: 'PST30001STU', checked: false },
+                    { value: 'PST30002VWX', label: 'PST30002VWX', checked: false }
+                ]);
+                
+                // 过滤后的资产列表
+                const filteredAssets = ref([]);
+                
+                const formState = reactive({
+                    vulnerabilityType: null,
+                    assetNames: [],
+                    personnel: null,
+                    level: null,
+                    reviewer: null,
+                    description: ''
+                });
+                
+                // 模拟搜索API
+                const mockSearchAPI = (keyword) => {
+                    return new Promise((resolve) => {
+                        setTimeout(() => {
+                            if (!keyword || keyword.trim() === '') {
+                                resolve([]);
+                            } else {
+                                const filtered = allAssets.value.filter(asset => 
+                                    asset.label.toLowerCase().includes(keyword.toLowerCase())
+                                );
+                                resolve(filtered);
+                            }
+                        }, 500);
+                    });
+                };
+                
+                // 处理搜索
+                const handleSearch = async () => {
+                    if (formState.vulnerabilityType !== 'network') return;
+                    
+                    const keyword = searchKeyword.value.trim();
+                    
+                    if (!keyword) {
+                        filteredAssets.value = [];
+                        showAssetCheckbox.value = true;
+                        return;
+                    }
+                    
+                    searching.value = true;
+                    try {
+                        const results = await mockSearchAPI(keyword);
+                        filteredAssets.value = results.map(item => ({
+                            ...item,
+                            checked: false
+                        }));
+                        showAssetCheckbox.value = true;
+                    } catch (error) {
+                        message.error('搜索失败，请重试');
+                    } finally {
+                        searching.value = false;
+                    }
+                };
+                
+                // 漏洞类型改变时的处理
+                const handleVulnerabilityTypeChange = (value) => {
+                    if (value === 'network') {
+                        // 选择网络设备漏洞时，显示暂无数据
+                        showAssetCheckbox.value = true;
+                        filteredAssets.value = [];
+                        searchKeyword.value = '';
+                        // 自动选择运维
+                        formState.personnel = 'operation';
+                    } else {
+                        // 选择其他类型时，清空相关数据
+                        showAssetCheckbox.value = false;
+                        searchKeyword.value = '';
+                        filteredAssets.value = [];
+                        formState.assetNames = [];
+                        formState.personnel = null;
+                    }
+                };
+                
+                // 人员选择过滤
+                const filterOption = (input, option) => {
+                    return option.children[0].children.toLowerCase().indexOf(input.toLowerCase()) >= 0;
+                };
+                
+                // 提交表单
+                const handleSubmit = async () => {
+                    // 收集选中的资产
+                    const selectedAssets = filteredAssets.value
+                        .filter(asset => asset.checked)
+                        .map(asset => asset.value);
+                    
+                    formState.assetNames = selectedAssets;
+                    
+                    console.log('提交的表单数据:', formState);
+                    message.success('提交成功！');
+                };
+                
+                // 返回
+                const handleCancel = () => {
+                    message.info('返回上一页');
+                };
+                
+                return {
+                    formRef,
+                    formState,
+                    searchKeyword,
+                    searching,
+                    filteredAssets,
+                    showAssetCheckbox,
+                    handleSearch,
+                    handleVulnerabilityTypeChange,
+                    filterOption,
+                    handleSubmit,
+                    handleCancel
+                };
+            }
+        }).use(antd).mount('#app');
+    </script>
+</body>
+</html>
