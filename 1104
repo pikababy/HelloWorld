@@ -1,0 +1,282 @@
+针对 Checkbox 组件，以下是获取选中项完整数据的几种方法：
+
+## 方法一：Checkbox.Group + 计算属性（推荐）
+
+```vue
+<template>
+  <a-checkbox-group 
+    v-model:value="checkedIds" 
+    @change="onCheckChange"
+  >
+    <a-checkbox 
+      v-for="item in dataList" 
+      :key="item.id" 
+      :value="item.id"
+    >
+      {{ item.name }}
+    </a-checkbox>
+  </a-checkbox-group>
+  
+  <a-button @click="getSelectedData">获取选中的数据</a-button>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      checkedIds: [], // 只存储选中的ID
+      dataList: [
+        {
+          id: "ff8080819638f0260198f4867544000e0",
+          code: "200",
+          name: "cisco-axl-1.0.0-SNAPSHOT.jar",
+          ip: "172.19.206.156",
+          path: "/appset/xjcl/tomcat/webapps/lws/WEB-INF/lib/cisco-axl-1.0.0-SNAPSHOT.jar",
+          // ... 其他字段
+        },
+        // ... 更多数据
+      ]
+    }
+  },
+  computed: {
+    // 通过计算属性获取选中的完整对象
+    selectedItems() {
+      return this.dataList.filter(item => 
+        this.checkedIds.includes(item.id)
+      )
+    }
+  },
+  methods: {
+    onCheckChange(checkedValues) {
+      console.log('选中的ID列表：', checkedValues)
+      console.log('选中的完整数据：', this.selectedItems)
+    },
+    
+    getSelectedData() {
+      // 获取所有选中项的完整信息
+      const fullData = this.selectedItems
+      
+      // 可以访问每个对象的所有字段
+      fullData.forEach(item => {
+        console.log('完整对象：', item)
+        console.log(`ID: ${item.id}`)
+        console.log(`Code: ${item.code}`)
+        console.log(`Name: ${item.name}`)
+        console.log(`IP: ${item.ip}`)
+        console.log(`Path: ${item.path}`)
+      })
+      
+      return fullData
+    }
+  }
+}
+</script>
+```
+
+## 方法二：单独的 Checkbox 循环（更灵活）
+
+```vue
+<template>
+  <div>
+    <a-checkbox 
+      v-for="item in dataList" 
+      :key="item.id"
+      :checked="isChecked(item.id)"
+      @change="(e) => handleCheck(e, item)"
+    >
+      {{ item.name }}
+    </a-checkbox>
+  </div>
+  
+  <a-button @click="getSelectedData">获取选中的数据</a-button>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      selectedItems: [], // 直接存储完整对象
+      dataList: [
+        // 你的数据数组
+      ]
+    }
+  },
+  methods: {
+    isChecked(id) {
+      return this.selectedItems.some(item => item.id === id)
+    },
+    
+    handleCheck(e, item) {
+      if (e.target.checked) {
+        // 选中时，添加完整对象
+        this.selectedItems.push(item)
+      } else {
+        // 取消选中时，移除对象
+        const index = this.selectedItems.findIndex(i => i.id === item.id)
+        if (index > -1) {
+          this.selectedItems.splice(index, 1)
+        }
+      }
+      
+      console.log('当前选中的所有数据：', this.selectedItems)
+    },
+    
+    getSelectedData() {
+      console.log('获取的完整数据：', this.selectedItems)
+      return this.selectedItems
+    }
+  }
+}
+</script>
+```
+
+## 方法三：使用 Map 结构优化性能（数据量大时推荐）
+
+```vue
+<template>
+  <a-checkbox-group 
+    v-model:value="checkedIds" 
+    @change="onCheckChange"
+  >
+    <a-checkbox 
+      v-for="item in dataList" 
+      :key="item.id" 
+      :value="item.id"
+    >
+      {{ item.name }}
+    </a-checkbox>
+  </a-checkbox-group>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      checkedIds: [],
+      dataList: [/* 你的数据 */],
+      dataMap: new Map() // 使用Map优化查找
+    }
+  },
+  created() {
+    // 初始化Map
+    this.dataList.forEach(item => {
+      this.dataMap.set(item.id, item)
+    })
+  },
+  methods: {
+    onCheckChange(checkedValues) {
+      // 使用Map快速获取完整数据
+      const selectedItems = checkedValues.map(id => this.dataMap.get(id))
+      
+      console.log('选中的完整数据：', selectedItems)
+      
+      // 示例：获取所有选中项的特定字段
+      const selectedNames = selectedItems.map(item => item.name)
+      const selectedPaths = selectedItems.map(item => item.path)
+      
+      console.log('选中的名称：', selectedNames)
+      console.log('选中的路径：', selectedPaths)
+    }
+  }
+}
+</script>
+```
+
+## 方法四：全选/反选功能的完整示例
+
+```vue
+<template>
+  <div>
+    <div style="margin-bottom: 16px">
+      <a-checkbox 
+        :indeterminate="indeterminate" 
+        :checked="checkAll"
+        @change="onCheckAllChange"
+      >
+        全选
+      </a-checkbox>
+    </div>
+    
+    <a-checkbox-group 
+      v-model:value="checkedIds" 
+      @change="onCheckChange"
+      style="display: flex; flex-direction: column;"
+    >
+      <a-checkbox 
+        v-for="item in dataList" 
+        :key="item.id" 
+        :value="item.id"
+        style="margin-bottom: 8px"
+      >
+        {{ item.name }}
+      </a-checkbox>
+    </a-checkbox-group>
+    
+    <a-divider />
+    
+    <a-button type="primary" @click="getSelectedData">
+      获取选中数据 ({{ checkedIds.length }})
+    </a-button>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      checkedIds: [],
+      checkAll: false,
+      indeterminate: false,
+      dataList: [/* 你的数据 */]
+    }
+  },
+  methods: {
+    onCheckChange(checkedValues) {
+      this.indeterminate = !!checkedValues.length && checkedValues.length < this.dataList.length
+      this.checkAll = checkedValues.length === this.dataList.length
+      
+      // 实时获取完整数据
+      const selectedItems = this.getFullDataByIds(checkedValues)
+      console.log('选中的数据：', selectedItems)
+    },
+    
+    onCheckAllChange(e) {
+      this.checkedIds = e.target.checked ? this.dataList.map(item => item.id) : []
+      this.indeterminate = false
+      this.checkAll = e.target.checked
+    },
+    
+    getFullDataByIds(ids) {
+      return this.dataList.filter(item => ids.includes(item.id))
+    },
+    
+    getSelectedData() {
+      const selectedItems = this.getFullDataByIds(this.checkedIds)
+      
+      // 输出完整信息
+      console.log('=== 选中的完整数据 ===')
+      selectedItems.forEach((item, index) => {
+        console.log(`--- 第 ${index + 1} 项 ---`)
+        console.log('完整对象：', item)
+        console.log('各字段值：')
+        Object.keys(item).forEach(key => {
+          console.log(`  ${key}: ${item[key]}`)
+        })
+      })
+      
+      // 返回数据供其他操作使用
+      return selectedItems
+    }
+  }
+}
+</script>
+```
+
+## 使用建议
+
+1. **方法一最简洁**：适合大多数场景，通过计算属性自动获取完整数据
+2. **方法二更灵活**：适合需要在选中/取消时立即处理数据的场景
+3. **方法三性能最好**：适合数据量大的场景（几百条以上）
+4. **方法四功能完整**：包含全选功能，适合需要批量操作的场景
+
+根据你截图中的数据结构，使用方法一就可以轻松获取到每个选中项的完整字段（id、code、name、ip、path、version等）。
