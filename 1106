@@ -1,0 +1,279 @@
+// 方案一：在组件中直接实现下载功能
+<template>
+  <div>
+    <!-- 下载按钮 -->
+    <a-button type="primary" :loading="downloading" @click="downloadFile">
+      <DownloadOutlined />
+      下载文件
+    </a-button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { Button as AButton, message } from 'ant-design-vue';
+import { DownloadOutlined } from '@ant-design/icons-vue';
+import { defHttp } from '/@/utils/http/axios';
+
+// 下载状态
+const downloading = ref(false);
+
+// 文件信息（对应Angular中的vm.item）
+const fileItem = ref({
+  name: '发起安全检测须知.docx',
+  path: '/vsm/attachment/template/发起安全检测须知.docx',
+  size: '13480'
+});
+
+// 下载文件函数
+const downloadFile = async () => {
+  if (downloading.value) return;
+  
+  downloading.value = true;
+  
+  try {
+    // 发送下载请求
+    const response = await defHttp.post(
+      {
+        url: '/api/flow/download-attach',
+        data: {
+          pathUrl: fileItem.value.path
+        },
+        responseType: 'arraybuffer', // 关键：设置响应类型为arraybuffer
+        timeout: 60000, // 设置超时时间
+      },
+      {
+        isTransformResponse: false, // 不转换响应数据
+        isReturnNativeResponse: true // 返回原生响应
+      }
+    );
+    
+    // 获取响应头中的content-type
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    
+    // 创建Blob对象
+    const blob = new Blob([response.data], { type: contentType });
+    
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob);
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', url);
+    linkElement.setAttribute('download', fileItem.value.name);
+    
+    // 创建点击事件并触发下载
+    const clickEvent = new MouseEvent('click', {
+      view: window,
+      bubbles: true,
+      cancelable: false
+    });
+    
+    linkElement.dispatchEvent(clickEvent);
+    
+    // 清理URL对象
+    window.URL.revokeObjectURL(url);
+    
+    message.success('文件下载成功');
+    
+  } catch (error) {
+    console.error('下载失败:', error);
+    message.error('文件下载失败');
+  } finally {
+    downloading.value = false;
+  }
+};
+</script>
+
+// ====================================================
+// 方案二：封装成可复用的工具函数
+
+// utils/file.ts
+import { defHttp } from '/@/utils/http/axios';
+import { message } from 'ant-design-vue';
+
+export interface DownloadFileParams {
+  url: string;
+  data?: any;
+  filename?: string;
+  timeout?: number;
+}
+
+/**
+ * 下载文件工具函数
+ * @param params 下载参数
+ */
+export const downloadFile = async (params: DownloadFileParams): Promise<void> => {
+  const { url, data, filename, timeout = 60000 } = params;
+  
+  try {
+    // 发送下载请求
+    const response = await defHttp.post(
+      {
+        url,
+        data,
+        responseType: 'arraybuffer',
+        timeout,
+      },
+      {
+        isTransformResponse: false,
+        isReturnNativeResponse: true
+      }
+    );
+    
+    // 获取文件名（如果没有提供，尝试从响应头获取）
+    let downloadFilename = filename;
+    if (!downloadFilename) {
+      const disposition = response.headers['content-disposition'];
+      if (disposition && disposition.includes('filename=')) {
+        downloadFilename = disposition.split('filename=')[1].replace(/"/g, '');
+      } else {
+        downloadFilename = `download_${Date.now()}`;
+      }
+    }
+    
+    // 获取content-type
+    const contentType = response.headers['content-type'] || 'application/octet-stream';
+    
+    // 创建并触发下载
+    const blob = new Blob([response.data], { type: contentType });
+    const downloadUrl = window.URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = downloadFilename;
+    link.style.display = 'none';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // 清理URL对象
+    window.URL.revokeObjectURL(downloadUrl);
+    
+    return Promise.resolve();
+    
+  } catch (error) {
+    console.error('文件下载失败:', error);
+    throw error;
+  }
+};
+
+// ====================================================
+// 方案三：在组件中使用封装的工具函数
+
+<template>
+  <div>
+    <a-button type="primary" :loading="downloading" @click="handleDownload">
+      <DownloadOutlined />
+      下载安全检测须知
+    </a-button>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { Button as AButton, message } from 'ant-design-vue';
+import { DownloadOutlined } from '@ant-design/icons-vue';
+import { downloadFile } from '/@/utils/file';
+
+const downloading = ref(false);
+
+// 文件信息
+const fileInfo = {
+  name: '发起安全检测须知.docx',
+  path: '/vsm/attachment/template/发起安全检测须知.docx'
+};
+
+const handleDownload = async () => {
+  downloading.value = true;
+  
+  try {
+    await downloadFile({
+      url: '/api/flow/download-attach',
+      data: {
+        pathUrl: fileInfo.path
+      },
+      filename: fileInfo.name
+    });
+    
+    message.success('文件下载成功');
+  } catch (error) {
+    message.error('文件下载失败，请重试');
+  } finally {
+    downloading.value = false;
+  }
+};
+</script>
+
+// ====================================================
+// 方案四：如果需要支持大文件下载进度显示
+
+<template>
+  <div>
+    <a-button type="primary" :loading="downloading" @click="downloadWithProgress">
+      <DownloadOutlined />
+      下载文件
+    </a-button>
+    
+    <!-- 下载进度条 -->
+    <a-progress
+      v-if="downloading && progress > 0"
+      :percent="progress"
+      status="active"
+      :show-info="true"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue';
+import { Button as AButton, Progress as AProgress, message } from 'ant-design-vue';
+import { DownloadOutlined } from '@ant-design/icons-vue';
+import axios from 'axios';
+import { getToken } from '/@/utils/auth';
+
+const downloading = ref(false);
+const progress = ref(0);
+
+const downloadWithProgress = async () => {
+  downloading.value = true;
+  progress.value = 0;
+  
+  try {
+    const response = await axios({
+      method: 'POST',
+      url: '/api/flow/download-attach',
+      data: {
+        pathUrl: '/vsm/attachment/template/发起安全检测须知.docx'
+      },
+      responseType: 'arraybuffer',
+      headers: {
+        'Authorization': `Bearer ${getToken()}`, // 如果需要认证
+        'Content-Type': 'application/json'
+      },
+      onDownloadProgress: (progressEvent) => {
+        if (progressEvent.total) {
+          progress.value = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        }
+      }
+    });
+    
+    // 处理下载
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = '发起安全检测须知.docx';
+    link.click();
+    window.URL.revokeObjectURL(url);
+    
+    message.success('文件下载完成');
+    
+  } catch (error) {
+    console.error('下载失败:', error);
+    message.error('文件下载失败');
+  } finally {
+    downloading.value = false;
+    progress.value = 0;
+  }
+};
+</script>
