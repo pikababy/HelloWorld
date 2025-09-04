@@ -1,0 +1,185 @@
+看了你的代码和界面，你可以通过以下几种方式在表单右下角添加取消和导入按钮：
+
+## 方法一：使用 BasicForm 的按钮配置
+
+```vue
+<template>
+  <div>
+    <PageHeader title="新建漏洞信息" @back="handleBack">
+      <template #breadcrumb>
+        <Breadcrumb>
+          <!-- 面包屑内容 -->
+        </Breadcrumb>
+      </template>
+    </PageHeader>
+
+    <BasicModal
+      v-bind="$attrs"
+      @register="registerModal"
+      :title="modalTitle"
+      :width="750"
+      @ok="handleSubmit"
+      :okText="'保存'"
+      :cancelText="'取消'"
+      :maskClosable="false"
+    >
+      <BasicForm 
+        @register="registerForm" 
+        class="formWrap"
+        :showActionButtonGroup="true"
+        :actionColOptions="{ span: 24, style: { textAlign: 'right', marginTop: '20px' } }"
+        :submitButtonOptions="{ text: '导入', preIcon: 'ant-design:upload-outlined' }"
+        :resetButtonOptions="{ text: '取消', preIcon: 'ant-design:close-outlined' }"
+        @submit="handleImport"
+        @reset="handleCancel"
+      >
+        <!-- 主文件选择 -->
+        <template #mainFile="{ model, field }">
+          <!-- 你的文件选择组件 -->
+        </template>
+
+        <!-- 附件列表 -->
+        <template #attachmentList>
+          <!-- 你的附件列表组件 -->
+        </template>
+      </BasicForm>
+    </BasicModal>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { ref, h, nextTick, onMounted, watch } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { BasicModal, useModalInner } from '@/components/Modal';
+import { BasicForm, useForm } from '@/components/Form';
+// 其他导入...
+
+const handleImport = async (values) => {
+  try {
+    // 处理导入逻辑
+    console.log('导入数据:', values);
+    // 调用你的导入API
+  } catch (error) {
+    console.error('导入失败:', error);
+  }
+};
+
+const handleCancel = () => {
+  // 处理取消逻辑
+  console.log('取消操作');
+  // 可以关闭modal或清空表单
+};
+</script>
+```
+
+## 方法二：在模板中直接添加按钮区域
+
+```vue
+<template>
+  <div>
+    <!-- 表单内容 -->
+    <BasicForm @register="registerForm" class="formWrap">
+      <!-- 表单字段 -->
+    </BasicForm>
+
+    <!-- 按钮区域 -->
+    <div class="form-footer">
+      <a-space>
+        <a-button @click="handleCancel">
+          <template #icon>
+            <CloseOutlined />
+          </template>
+          取消
+        </a-button>
+        <a-button type="primary" @click="handleImport">
+          <template #icon>
+            <UploadOutlined />
+          </template>
+          导入
+        </a-button>
+      </a-space>
+    </div>
+  </div>
+</template>
+
+<script lang="ts" setup>
+import { CloseOutlined, UploadOutlined } from '@ant-design/icons-vue';
+// 其他导入...
+
+const handleImport = () => {
+  // 获取表单数据
+  const formData = getFieldsValue();
+  console.log('导入数据:', formData);
+  // 执行导入逻辑
+};
+
+const handleCancel = () => {
+  // 取消操作
+  resetFields(); // 重置表单
+  // 或者跳转到其他页面
+};
+</script>
+
+<style scoped>
+.form-footer {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 999;
+  padding: 12px 20px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 或者使用相对定位 */
+.form-footer-relative {
+  text-align: right;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+</style>
+```
+
+## 方法三：使用 BasicModal 的 footer 插槽
+
+如果你使用的是Modal，可以自定义footer：
+
+```vue
+<template>
+  <BasicModal
+    @register="registerModal"
+    :title="modalTitle"
+    :width="750"
+    :footer="null"
+  >
+    <BasicForm @register="registerForm" class="formWrap">
+      <!-- 表单内容 -->
+    </BasicForm>
+    
+    <!-- 自定义footer -->
+    <template #footer>
+      <div style="text-align: right;">
+        <a-space>
+          <a-button @click="handleCancel">取消</a-button>
+          <a-button type="primary" @click="handleImport">导入</a-button>
+        </a-space>
+      </div>
+    </template>
+  </BasicModal>
+</template>
+```
+
+## 推荐做法
+
+基于你的代码结构，我推荐使用**方法一**，因为它：
+1. 符合vben admin的设计规范
+2. 按钮样式统一
+3. 响应式布局自适应
+4. 代码简洁易维护
+
+选择哪种方法取决于你的具体需求：
+- 如果想要按钮固定在右下角，用方法二
+- 如果在Modal中，用方法三
+- 如果想要标准的表单布局，用方法一
