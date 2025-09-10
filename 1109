@@ -1,0 +1,195 @@
+在 Vue 3 中，有几种方式可以在首次进入页面时给 `formState` 赋初始值。根据你的代码截图，我提供几种常用的方案：
+
+## 方案一：在 `onMounted` 中赋值
+
+```javascript
+import { reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+const formState = reactive({
+  systemName: undefined,
+  mgUnit: '',
+  opUnit: '',
+  sysConstUnit: '',
+  sysOpUnit: '',
+  manager: undefined,
+  securityLeader: undefined,
+  lineLeader: undefined,
+  applyType: undefined,
+  testingType: undefined,
+  testingEnvironment: undefined,
+  systemExistentialRisk: '',
+  description: '',
+  managerId: '',
+  securityLeaderId: '',
+  lineLeaderId: '',
+})
+
+onMounted(async () => {
+  // 如果是编辑模式，通过路由参数获取ID
+  const id = route.params.id
+  
+  if (id) {
+    // 调用接口获取数据
+    const data = await fetchFormData(id)
+    
+    // 给 formState 赋值
+    Object.assign(formState, data)
+    
+    // 或者逐个赋值
+    // formState.systemName = data.systemName
+    // formState.mgUnit = data.mgUnit
+    // ...
+  } else {
+    // 新增模式，设置默认值
+    Object.assign(formState, {
+      systemName: 'system1', // 默认值
+      mgUnit: '默认单位',
+      applyType: 'type1',
+      // ...其他默认值
+    })
+  }
+})
+```
+
+## 方案二：使用异步 setup 配合 Suspense
+
+```javascript
+const formState = reactive({
+  systemName: undefined,
+  mgUnit: '',
+  // ... 其他字段
+})
+
+// 初始化函数
+const initFormData = async () => {
+  const id = route.params.id
+  
+  try {
+    if (id) {
+      // 编辑模式 - 获取详情数据
+      const response = await getDetailApi(id)
+      Object.assign(formState, response.data)
+    } else {
+      // 新增模式 - 设置默认值
+      const defaultData = {
+        systemName: undefined,
+        applyType: 'type1',
+        testingType: 'test1',
+        // 其他默认值
+      }
+      Object.assign(formState, defaultData)
+    }
+  } catch (error) {
+    console.error('初始化表单数据失败', error)
+  }
+}
+
+// 在组件创建时立即调用
+initFormData()
+```
+
+## 方案三：使用 watchEffect 监听路由变化
+
+```javascript
+import { watchEffect } from 'vue'
+
+const formState = reactive({
+  systemName: undefined,
+  mgUnit: '',
+  // ... 其他字段
+})
+
+// 监听路由变化，自动加载数据
+watchEffect(async () => {
+  const id = route.params.id
+  
+  if (id) {
+    const data = await fetchFormData(id)
+    
+    // 重置并赋值
+    Object.keys(formState).forEach(key => {
+      formState[key] = data[key] || undefined
+    })
+  }
+})
+```
+
+## 方案四：封装成可复用的函数
+
+```javascript
+// 创建一个重置表单的函数
+const resetFormState = () => {
+  const defaultValues = {
+    systemName: undefined,
+    mgUnit: '',
+    opUnit: '',
+    sysConstUnit: '',
+    sysOpUnit: '',
+    manager: undefined,
+    securityLeader: undefined,
+    lineLeader: undefined,
+    applyType: undefined,
+    testingType: undefined,
+    testingEnvironment: undefined,
+    systemExistentialRisk: '',
+    description: '',
+    managerId: '',
+    securityLeaderId: '',
+    lineLeaderId: '',
+  }
+  
+  Object.assign(formState, defaultValues)
+}
+
+// 加载表单数据
+const loadFormData = async (id) => {
+  if (!id) {
+    resetFormState()
+    return
+  }
+  
+  try {
+    const { data } = await getFormDetailApi(id)
+    Object.assign(formState, data)
+  } catch (error) {
+    message.error('加载数据失败')
+    resetFormState()
+  }
+}
+
+// 在 onMounted 中调用
+onMounted(() => {
+  const id = route.params.id
+  loadFormData(id)
+})
+```
+
+## 注意事项
+
+1. **使用 `Object.assign`** 而不是直接赋值整个对象，这样可以保持响应性
+2. **处理异步数据**：确保在数据加载完成前显示加载状态
+3. **错误处理**：添加 try-catch 处理接口调用失败的情况
+4. **表单重置**：在切换不同数据时，先重置表单避免数据污染
+
+根据你的截图，`showAddModal` 控制弹窗显示，你也可以在弹窗打开时初始化数据：
+
+```javascript
+const showAddModal = ref(false)
+
+// 打开弹窗并初始化数据
+const openModal = async (id) => {
+  showAddModal.value = true
+  
+  if (id) {
+    // 编辑模式
+    await loadFormData(id)
+  } else {
+    // 新增模式
+    resetFormState()
+  }
+}
+```
+
+选择哪种方案取决于你的具体需求，如果是页面级的表单，推荐使用方案一或方案二；如果是弹窗表单，可以在打开弹窗时初始化数据。
