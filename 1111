@@ -1,0 +1,294 @@
+<template>
+  <div>
+    <!-- 触发按钮 -->
+    <a-button type="primary" @click="showModal">打开风险提示弹框</a-button>
+
+    <!-- 风险提示响应操作弹框 -->
+    <a-modal
+      v-model:open="visible"
+      title="风险提示响应操作"
+      width="1200px"
+      :footer="null"
+      centered
+    >
+      <!-- 漏洞信息表格 -->
+      <a-table
+        :columns="columns"
+        :data-source="dataSource"
+        :pagination="false"
+        bordered
+        size="middle"
+        :scroll="{ x: 1100 }"
+      >
+        <template #bodyCell="{ column, text }">
+          <template v-if="column.dataIndex === 'level'">
+            <span style="color: #ff4d4f">{{ text }}</span>
+          </template>
+        </template>
+      </a-table>
+
+      <!-- 选择操作区域 -->
+      <div class="operation-section">
+        <h4>选择操作</h4>
+        
+        <!-- 使用 Form 组件实现必输验证 -->
+        <a-form
+          ref="formRef"
+          :model="formState"
+          :rules="rules"
+          layout="vertical"
+        >
+          <!-- 选择应用系统 -->
+          <a-form-item
+            label="选择应用系统"
+            name="selectedSystem"
+            :required="true"
+          >
+            <a-select
+              v-model:value="formState.selectedSystem"
+              placeholder="请选择应用系统"
+              allow-clear
+              size="large"
+            >
+              <a-select-option value="system1">应用系统1</a-select-option>
+              <a-select-option value="system2">应用系统2</a-select-option>
+              <a-select-option value="system3">应用系统3</a-select-option>
+            </a-select>
+          </a-form-item>
+
+          <!-- 选择属主 -->
+          <a-form-item
+            label="选择属主"
+            name="selectedOwner"
+            :required="true"
+          >
+            <a-select
+              v-model:value="formState.selectedOwner"
+              placeholder="请选择属主"
+              allow-clear
+              size="large"
+            >
+              <a-select-option value="owner1">张三</a-select-option>
+              <a-select-option value="owner2">李四</a-select-option>
+              <a-select-option value="owner3">王五</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-form>
+
+        <!-- 底部按钮 -->
+        <div class="footer-buttons">
+          <a-button @click="handleCancel" size="large">
+            <CloseCircleOutlined /> 取消
+          </a-button>
+          <a-button type="primary" @click="handleConfirm" size="large">
+            <CheckOutlined /> 确认
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive } from 'vue';
+import { CheckOutlined, CloseCircleOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
+
+// 弹框显示状态
+const visible = ref(false);
+
+// 表单引用
+const formRef = ref();
+
+// 表单数据
+const formState = reactive({
+  selectedSystem: undefined,
+  selectedOwner: undefined
+});
+
+// 表单验证规则
+const rules = {
+  selectedSystem: [
+    { required: true, message: '请选择应用系统', trigger: 'change' }
+  ],
+  selectedOwner: [
+    { required: true, message: '请选择属主', trigger: 'change' }
+  ]
+};
+
+// 表格列配置
+const columns = [
+  {
+    title: '漏洞ID',
+    dataIndex: 'id',
+    width: 150,
+    align: 'center'
+  },
+  {
+    title: '漏洞来源',
+    dataIndex: 'source',
+    width: 180,
+    align: 'center'
+  },
+  {
+    title: '漏洞级别',
+    dataIndex: 'level',
+    width: 100,
+    align: 'center'
+  },
+  {
+    title: '漏洞名称',
+    dataIndex: 'name',
+    width: 300,
+    align: 'center'
+  },
+  {
+    title: '漏洞类型',
+    dataIndex: 'type',
+    width: 150,
+    align: 'center'
+  },
+  {
+    title: '发布时间',
+    dataIndex: 'publishTime',
+    width: 180,
+    align: 'center'
+  }
+];
+
+// 表格数据
+const dataSource = [
+  {
+    key: '1',
+    id: 'QT032016001402',
+    source: '172.19.208.6:25060',
+    level: '高危',
+    name: 'NTP服务存在反射放大DOS攻击漏洞',
+    type: 'WEB应用漏洞',
+    publishTime: '2025-09-01 17:22:12'
+  }
+];
+
+// 显示弹框
+const showModal = () => {
+  visible.value = true;
+};
+
+// 取消操作
+const handleCancel = () => {
+  visible.value = false;
+  // 重置表单
+  formRef.value?.resetFields();
+};
+
+// 确认操作
+const handleConfirm = async () => {
+  try {
+    // 验证表单
+    await formRef.value.validateFields();
+    
+    // 验证通过，执行提交逻辑
+    message.success('操作成功');
+    visible.value = false;
+    
+    // 重置表单
+    formRef.value?.resetFields();
+  } catch (error) {
+    // 验证失败，表单会自动显示错误信息
+    console.log('Validation failed:', error);
+  }
+};
+</script>
+
+<style scoped>
+/* 操作区域样式 */
+.operation-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.operation-section h4 {
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* 表单样式调整 */
+:deep(.ant-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.ant-form-item-label) {
+  padding-bottom: 8px;
+}
+
+:deep(.ant-form-item-label > label) {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* 必填标记样式 */
+:deep(.ant-form-item-required::before) {
+  display: inline-block;
+  margin-right: 4px;
+  color: #ff4d4f;
+  font-size: 14px;
+  font-family: SimSun, sans-serif;
+  line-height: 1;
+  content: '*';
+}
+
+/* Select 组件样式 */
+:deep(.ant-select) {
+  width: 100%;
+}
+
+/* 底部按钮样式 */
+.footer-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.footer-buttons .ant-btn {
+  min-width: 100px;
+}
+
+/* 自定义表格样式 */
+:deep(.ant-table) {
+  font-size: 14px;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  background: #f0f2f5;
+  font-weight: 600;
+}
+
+:deep(.ant-table-tbody > tr > td) {
+  padding: 12px;
+}
+
+:deep(.ant-modal-header) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.ant-modal-title) {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* 错误提示样式 */
+:deep(.ant-form-item-has-error .ant-select-selector) {
+  border-color: #ff4d4f !important;
+}
+
+:deep(.ant-form-item-explain-error) {
+  font-size: 14px;
+}
+</style>
