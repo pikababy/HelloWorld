@@ -1,0 +1,514 @@
+我将把代码改成组件形式，创建一个可复用的风险提示响应操作弹框组件。
+
+## 1. 组件文件：`RiskResponseModal.vue`
+
+```vue
+<template>
+  <a-modal
+    v-model:open="modalVisible"
+    title="风险提示响应操作"
+    width="1200px"
+    :footer="null"
+    centered
+    @cancel="handleCancel"
+  >
+    <!-- 漏洞信息表格 -->
+    <a-table
+      :columns="columns"
+      :data-source="tableData"
+      :pagination="false"
+      bordered
+      size="middle"
+      :scroll="{ x: 1100 }"
+    >
+      <template #bodyCell="{ column, text }">
+        <template v-if="column.dataIndex === 'level'">
+          <span :style="{ color: getLevelColor(text) }">{{ text }}</span>
+        </template>
+      </template>
+    </a-table>
+
+    <!-- 选择操作区域 -->
+    <div class="operation-section">
+      <h4>选择操作</h4>
+      
+      <!-- 使用 Form 组件实现必输验证 -->
+      <a-form
+        ref="formRef"
+        :model="formState"
+        :rules="rules"
+        layout="vertical"
+      >
+        <!-- 选择应用系统 -->
+        <a-form-item
+          label="选择应用系统"
+          name="selectedSystem"
+          :required="true"
+        >
+          <a-select
+            v-model:value="formState.selectedSystem"
+            placeholder="请选择应用系统"
+            allow-clear
+            size="large"
+          >
+            <a-select-option 
+              v-for="system in systemOptions" 
+              :key="system.value"
+              :value="system.value"
+            >
+              {{ system.label }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+
+        <!-- 选择属主 -->
+        <a-form-item
+          label="选择属主"
+          name="selectedOwner"
+          :required="true"
+        >
+          <a-select
+            v-model:value="formState.selectedOwner"
+            placeholder="请选择属主"
+            allow-clear
+            size="large"
+          >
+            <a-select-option 
+              v-for="owner in ownerOptions" 
+              :key="owner.value"
+              :value="owner.value"
+            >
+              {{ owner.label }}
+            </a-select-option>
+          </a-select>
+        </a-form-item>
+      </a-form>
+
+      <!-- 底部按钮 -->
+      <div class="footer-buttons">
+        <a-button @click="handleCancel" size="large">
+          <CloseCircleOutlined /> 取消
+        </a-button>
+        <a-button 
+          type="primary" 
+          @click="handleConfirm" 
+          size="large"
+          :loading="confirmLoading"
+        >
+          <CheckOutlined /> 确认
+        </a-button>
+      </div>
+    </div>
+  </a-modal>
+</template>
+
+<script setup>
+import { ref, reactive, computed, watch } from 'vue';
+import { CheckOutlined, CloseCircleOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
+
+// 定义 props
+const props = defineProps({
+  // 控制弹框显示
+  visible: {
+    type: Boolean,
+    default: false
+  },
+  // 表格数据
+  data: {
+    type: Array,
+    default: () => []
+  },
+  // 系统选项
+  systemOptions: {
+    type: Array,
+    default: () => [
+      { value: 'system1', label: '应用系统1' },
+      { value: 'system2', label: '应用系统2' },
+      { value: 'system3', label: '应用系统3' }
+    ]
+  },
+  // 属主选项
+  ownerOptions: {
+    type: Array,
+    default: () => [
+      { value: 'owner1', label: '张三' },
+      { value: 'owner2', label: '李四' },
+      { value: 'owner3', label: '王五' }
+    ]
+  },
+  // 确认按钮loading状态
+  confirmLoading: {
+    type: Boolean,
+    default: false
+  }
+});
+
+// 定义 emits
+const emit = defineEmits(['update:visible', 'confirm', 'cancel']);
+
+// 计算属性：控制弹框显示
+const modalVisible = computed({
+  get: () => props.visible,
+  set: (value) => emit('update:visible', value)
+});
+
+// 表单引用
+const formRef = ref();
+
+// 表单数据
+const formState = reactive({
+  selectedSystem: undefined,
+  selectedOwner: undefined
+});
+
+// 表单验证规则
+const rules = {
+  selectedSystem: [
+    { required: true, message: '请选择应用系统', trigger: 'change' }
+  ],
+  selectedOwner: [
+    { required: true, message: '请选择属主', trigger: 'change' }
+  ]
+};
+
+// 表格列配置
+const columns = [
+  {
+    title: '漏洞ID',
+    dataIndex: 'id',
+    width: 150,
+    align: 'center'
+  },
+  {
+    title: '漏洞来源',
+    dataIndex: 'source',
+    width: 180,
+    align: 'center'
+  },
+  {
+    title: '漏洞级别',
+    dataIndex: 'level',
+    width: 100,
+    align: 'center'
+  },
+  {
+    title: '漏洞名称',
+    dataIndex: 'name',
+    width: 300,
+    align: 'center'
+  },
+  {
+    title: '漏洞类型',
+    dataIndex: 'type',
+    width: 150,
+    align: 'center'
+  },
+  {
+    title: '发布时间',
+    dataIndex: 'publishTime',
+    width: 180,
+    align: 'center'
+  }
+];
+
+// 计算表格数据
+const tableData = computed(() => {
+  // 如果没有传入数据，使用默认数据
+  if (props.data.length === 0) {
+    return [
+      {
+        key: '1',
+        id: 'QT032016001402',
+        source: '172.19.208.6:25060',
+        level: '高危',
+        name: 'NTP服务存在反射放大DOS攻击漏洞',
+        type: 'WEB应用漏洞',
+        publishTime: '2025-09-01 17:22:12'
+      }
+    ];
+  }
+  return props.data;
+});
+
+// 获取级别对应的颜色
+const getLevelColor = (level) => {
+  const colorMap = {
+    '高危': '#ff4d4f',
+    '中危': '#faad14',
+    '低危': '#52c41a'
+  };
+  return colorMap[level] || '#000';
+};
+
+// 取消操作
+const handleCancel = () => {
+  modalVisible.value = false;
+  // 重置表单
+  formRef.value?.resetFields();
+  emit('cancel');
+};
+
+// 确认操作
+const handleConfirm = async () => {
+  try {
+    // 验证表单
+    await formRef.value.validateFields();
+    
+    // 触发确认事件，传递表单数据
+    emit('confirm', {
+      selectedSystem: formState.selectedSystem,
+      selectedOwner: formState.selectedOwner,
+      vulnerabilities: tableData.value
+    });
+    
+  } catch (error) {
+    // 验证失败，表单会自动显示错误信息
+    console.log('Validation failed:', error);
+  }
+};
+
+// 监听 visible 变化，重置表单
+watch(modalVisible, (newVal) => {
+  if (!newVal) {
+    formRef.value?.resetFields();
+  }
+});
+
+// 暴露方法给父组件
+defineExpose({
+  resetForm: () => {
+    formRef.value?.resetFields();
+  },
+  getFormData: () => {
+    return {
+      selectedSystem: formState.selectedSystem,
+      selectedOwner: formState.selectedOwner
+    };
+  }
+});
+</script>
+
+<style scoped>
+/* 操作区域样式 */
+.operation-section {
+  margin-top: 24px;
+  padding: 20px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.operation-section h4 {
+  margin-bottom: 20px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* 表单样式调整 */
+:deep(.ant-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.ant-form-item-label) {
+  padding-bottom: 8px;
+}
+
+:deep(.ant-form-item-label > label) {
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* 必填标记样式 */
+:deep(.ant-form-item-required::before) {
+  display: inline-block;
+  margin-right: 4px;
+  color: #ff4d4f;
+  font-size: 14px;
+  font-family: SimSun, sans-serif;
+  line-height: 1;
+  content: '*';
+}
+
+/* Select 组件样式 */
+:deep(.ant-select) {
+  width: 100%;
+}
+
+/* 底部按钮样式 */
+.footer-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e8e8e8;
+}
+
+.footer-buttons .ant-btn {
+  min-width: 100px;
+}
+
+/* 自定义表格样式 */
+:deep(.ant-table) {
+  font-size: 14px;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  background: #f0f2f5;
+  font-weight: 600;
+}
+
+:deep(.ant-table-tbody > tr > td) {
+  padding: 12px;
+}
+
+:deep(.ant-modal-header) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.ant-modal-title) {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+/* 错误提示样式 */
+:deep(.ant-form-item-has-error .ant-select-selector) {
+  border-color: #ff4d4f !important;
+}
+
+:deep(.ant-form-item-explain-error) {
+  font-size: 14px;
+}
+</style>
+```
+
+## 2. 使用示例：`App.vue` 或其他父组件
+
+```vue
+<template>
+  <div class="container">
+    <!-- 触发按钮 -->
+    <a-button type="primary" @click="openModal">打开风险提示弹框</a-button>
+
+    <!-- 使用风险提示响应操作弹框组件 -->
+    <RiskResponseModal
+      v-model:visible="modalVisible"
+      :data="vulnerabilityData"
+      :system-options="systemList"
+      :owner-options="ownerList"
+      :confirm-loading="loading"
+      @confirm="handleModalConfirm"
+      @cancel="handleModalCancel"
+    />
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue';
+import { message } from 'ant-design-vue';
+import RiskResponseModal from './components/RiskResponseModal.vue';
+
+// 控制弹框显示
+const modalVisible = ref(false);
+const loading = ref(false);
+
+// 漏洞数据
+const vulnerabilityData = ref([
+  {
+    key: '1',
+    id: 'QT032016001402',
+    source: '172.19.208.6:25060',
+    level: '高危',
+    name: 'NTP服务存在反射放大DOS攻击漏洞',
+    type: 'WEB应用漏洞',
+    publishTime: '2025-09-01 17:22:12'
+  },
+  {
+    key: '2',
+    id: 'QT032016001403',
+    source: '172.19.208.6:25061',
+    level: '中危',
+    name: 'SQL注入漏洞',
+    type: 'WEB应用漏洞',
+    publishTime: '2025-09-01 18:30:25'
+  }
+]);
+
+// 系统选项列表
+const systemList = ref([
+  { value: 'oa', label: 'OA办公系统' },
+  { value: 'crm', label: 'CRM客户管理系统' },
+  { value: 'erp', label: 'ERP企业资源计划系统' },
+  { value: 'hr', label: 'HR人力资源系统' }
+]);
+
+// 属主选项列表
+const ownerList = ref([
+  { value: 'zhangsan', label: '张三' },
+  { value: 'lisi', label: '李四' },
+  { value: 'wangwu', label: '王五' },
+  { value: 'zhaoliu', label: '赵六' }
+]);
+
+// 打开弹框
+const openModal = () => {
+  modalVisible.value = true;
+};
+
+// 处理确认事件
+const handleModalConfirm = async (data) => {
+  console.log('确认数据：', data);
+  
+  // 模拟异步操作
+  loading.value = true;
+  
+  try {
+    // 这里可以调用API提交数据
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    message.success('操作成功！');
+    modalVisible.value = false;
+  } catch (error) {
+    message.error('操作失败，请重试');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 处理取消事件
+const handleModalCancel = () => {
+  console.log('用户取消了操作');
+};
+</script>
+
+<style scoped>
+.container {
+  padding: 50px;
+}
+</style>
+```
+
+## 组件特点：
+
+1. **可复用性**：组件完全独立，可以在任何地方引入使用
+
+2. **Props 支持**：
+   - `visible`: 控制弹框显示
+   - `data`: 传入漏洞数据
+   - `systemOptions`: 自定义系统选项
+   - `ownerOptions`: 自定义属主选项
+   - `confirmLoading`: 确认按钮loading状态
+
+3. **事件支持**：
+   - `@confirm`: 确认时触发，返回选中的数据
+   - `@cancel`: 取消时触发
+   - `@update:visible`: 支持v-model:visible双向绑定
+
+4. **暴露方法**：
+   - `resetForm()`: 重置表单
+   - `getFormData()`: 获取当前表单数据
+
+5. **灵活配置**：可以通过props传入不同的数据和选项，适应不同场景
+
+这样的组件设计使得代码更加模块化、可维护和可复用。
