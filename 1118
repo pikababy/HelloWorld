@@ -1,0 +1,264 @@
+<template>
+  <div class="container">
+    <a-space>
+      <a-button type="primary" @click="handleAdd">
+        <template #icon><plus-outlined /></template>
+        新增组件
+      </a-button>
+      <a-button @click="handleEdit">
+        <template #icon><edit-outlined /></template>
+        编辑示例
+      </a-button>
+    </a-space>
+
+    <!-- 组件及中间件信息弹框 -->
+    <ComponentModal
+      v-model="modalVisible"
+      :edit-data="editData"
+      @on-save="handleSave"
+      @on-cancel="handleCancel"
+    />
+
+    <!-- 数据展示表格 -->
+    <a-table 
+      :columns="columns" 
+      :data-source="dataSource" 
+      :pagination="pagination"
+      style="margin-top: 20px"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'action'">
+          <a-space>
+            <a-button type="link" size="small" @click="handleEditItem(record)">
+              编辑
+            </a-button>
+            <a-popconfirm
+              title="确定要删除吗？"
+              @confirm="handleDelete(record)"
+            >
+              <a-button type="link" size="small" danger>删除</a-button>
+            </a-popconfirm>
+          </a-space>
+        </template>
+        <template v-else-if="column.key === 'riskLevel'">
+          <a-tag :color="getRiskLevelColor(record.riskLevel)">
+            {{ getRiskLevelText(record.riskLevel) }}
+          </a-tag>
+        </template>
+        <template v-else-if="column.key === 'isEvaluated'">
+          <a-tag :color="record.isEvaluated ? 'green' : 'red'">
+            {{ record.isEvaluated ? '是' : '否' }}
+          </a-tag>
+        </template>
+      </template>
+    </a-table>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive } from 'vue';
+import { message } from 'ant-design-vue';
+import { PlusOutlined, EditOutlined } from '@ant-design/icons-vue';
+import ComponentModal from './ComponentModal.vue';
+
+// 控制弹框显示
+const modalVisible = ref(false);
+const editData = ref(null);
+
+// 表格列配置
+const columns = [
+  {
+    title: '组件名称',
+    dataIndex: 'componentName',
+    key: 'componentName',
+    width: 150,
+  },
+  {
+    title: '组件版本',
+    dataIndex: 'componentVersion',
+    key: 'componentVersion',
+    width: 100,
+  },
+  {
+    title: '应用资产名称',
+    dataIndex: 'appAssetName',
+    key: 'appAssetName',
+    width: 150,
+  },
+  {
+    title: '主机名',
+    dataIndex: 'hostname',
+    key: 'hostname',
+    width: 120,
+  },
+  {
+    title: 'IP',
+    dataIndex: 'ip',
+    key: 'ip',
+    width: 120,
+  },
+  {
+    title: '组件类型',
+    dataIndex: 'componentType',
+    key: 'componentType',
+    width: 100,
+  },
+  {
+    title: '风险级别',
+    dataIndex: 'riskLevel',
+    key: 'riskLevel',
+    width: 100,
+  },
+  {
+    title: '是否已评估',
+    dataIndex: 'isEvaluated',
+    key: 'isEvaluated',
+    width: 100,
+  },
+  {
+    title: '操作',
+    key: 'action',
+    width: 150,
+    fixed: 'right',
+  }
+];
+
+// 表格数据
+const dataSource = ref([
+  {
+    key: '1',
+    componentName: 'Apache Tomcat',
+    componentVersion: '9.0.65',
+    appAssetName: 'app1',
+    hostname: 'server-01',
+    ip: '192.168.1.100',
+    componentType: 'middleware',
+    componentSource: 'source1',
+    componentPath: '/usr/local/tomcat',
+    riskLevel: 'medium',
+    isEvaluated: true,
+  },
+  {
+    key: '2',
+    componentName: 'MySQL',
+    componentVersion: '8.0.30',
+    appAssetName: 'app2',
+    hostname: 'server-02',
+    ip: '192.168.1.101',
+    componentType: 'database',
+    componentSource: 'source2',
+    componentPath: '/usr/local/mysql',
+    riskLevel: 'low',
+    isEvaluated: true,
+  },
+]);
+
+// 分页配置
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 2,
+  showSizeChanger: true,
+  showQuickJumper: true,
+  showTotal: (total) => `共 ${total} 条`,
+});
+
+// 新增
+const handleAdd = () => {
+  editData.value = null;
+  modalVisible.value = true;
+};
+
+// 编辑示例
+const handleEdit = () => {
+  editData.value = {
+    componentName: 'Redis',
+    componentVersion: '7.0.5',
+    appAssetName: 'app1',
+    hostname: 'server-03',
+    ip: '192.168.1.102',
+    componentSource: 'source1',
+    componentType: 'database',
+    componentPath: '/usr/local/redis',
+    riskLevel: 'low',
+    isEvaluated: false,
+  };
+  modalVisible.value = true;
+};
+
+// 编辑某一行
+const handleEditItem = (record) => {
+  editData.value = { ...record };
+  modalVisible.value = true;
+};
+
+// 删除
+const handleDelete = (record) => {
+  const index = dataSource.value.findIndex(item => item.key === record.key);
+  if (index !== -1) {
+    dataSource.value.splice(index, 1);
+    message.success('删除成功');
+  }
+};
+
+// 保存处理
+const handleSave = (formData) => {
+  console.log('保存的数据:', formData);
+  
+  if (editData.value) {
+    // 编辑模式：更新现有数据
+    const index = dataSource.value.findIndex(item => item.key === editData.value.key);
+    if (index !== -1) {
+      dataSource.value[index] = { ...dataSource.value[index], ...formData };
+      message.success('更新成功');
+    }
+  } else {
+    // 新增模式：添加新数据
+    const newRecord = {
+      ...formData,
+      key: Date.now().toString(),
+    };
+    dataSource.value.push(newRecord);
+    pagination.total += 1;
+    message.success('新增成功');
+  }
+  
+  // 实际项目中这里会调用API
+  // await saveComponentAPI(formData);
+};
+
+// 取消处理
+const handleCancel = () => {
+  console.log('取消操作');
+};
+
+// 获取风险级别颜色
+const getRiskLevelColor = (level) => {
+  const colorMap = {
+    low: 'green',
+    medium: 'orange',
+    high: 'red',
+    critical: 'purple',
+  };
+  return colorMap[level] || 'default';
+};
+
+// 获取风险级别文本
+const getRiskLevelText = (level) => {
+  const textMap = {
+    low: '低',
+    medium: '中',
+    high: '高',
+    critical: '严重',
+  };
+  return textMap[level] || level;
+};
+</script>
+
+<style scoped>
+.container {
+  padding: 24px;
+  background: #fff;
+  min-height: 100vh;
+}
+</style>
