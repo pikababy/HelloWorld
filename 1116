@@ -1,0 +1,508 @@
+您说得对，让我重新调整布局，前三个字段独占一行：
+
+## 组件文件：`AddHostModal.vue`
+
+```vue
+<template>
+  <a-modal
+    v-model:open="modalVisible"
+    title="新增主机信息"
+    width="900px"
+    :footer="null"
+    centered
+    :destroyOnClose="true"
+    @cancel="handleCancel"
+  >
+    <a-form
+      ref="formRef"
+      :model="formState"
+      :rules="rules"
+      :label-col="{ span: 4 }"
+      :wrapper-col="{ span: 18 }"
+      autocomplete="off"
+    >
+      <!-- 前三个字段独占一行 -->
+      <!-- 主机名 -->
+      <a-form-item
+        label="主机名"
+        name="hostname"
+        :required="true"
+      >
+        <a-input
+          v-model:value="formState.hostname"
+          placeholder=""
+          size="large"
+        />
+      </a-form-item>
+
+      <!-- IP -->
+      <a-form-item
+        label="IP"
+        name="ip"
+        :required="true"
+      >
+        <a-input
+          v-model:value="formState.ip"
+          placeholder=""
+          size="large"
+        />
+      </a-form-item>
+
+      <!-- 应用资产名称 -->
+      <a-form-item
+        label="应用资产名称"
+        name="assetName"
+        :required="true"
+      >
+        <a-select
+          v-model:value="formState.assetName"
+          placeholder=""
+          size="large"
+          allow-clear
+        >
+          <a-select-option 
+            v-for="asset in assetOptions" 
+            :key="asset.value"
+            :value="asset.value"
+          >
+            {{ asset.label }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+
+      <!-- 后面的字段使用两列布局 -->
+      <a-row :gutter="16">
+        <!-- 左侧列 -->
+        <a-col :span="12">
+          <!-- 品牌 -->
+          <a-form-item
+            label="品牌"
+            name="brand"
+            :label-col="{ span: 8 }"
+            :wrapper-col="{ span: 16 }"
+            :required="true"
+          >
+            <a-input
+              v-model:value="formState.brand"
+              placeholder=""
+              size="large"
+            />
+          </a-form-item>
+
+          <!-- 运维负责人 -->
+          <a-form-item
+            label="运维负责人"
+            name="maintainer"
+            :label-col="{ span: 8 }"
+            :wrapper-col="{ span: 16 }"
+            :required="true"
+          >
+            <a-select
+              v-model:value="formState.maintainer"
+              placeholder="--可多选--"
+              mode="multiple"
+              size="large"
+              allow-clear
+            >
+              <a-select-option 
+                v-for="person in maintainerOptions" 
+                :key="person.value"
+                :value="person.value"
+              >
+                {{ person.label }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+
+          <!-- 操作系统发行版本 -->
+          <a-form-item
+            label="操作系统发行版本"
+            name="osVersion"
+            :label-col="{ span: 8 }"
+            :wrapper-col="{ span: 16 }"
+          >
+            <a-input
+              v-model:value="formState.osVersion"
+              placeholder=""
+              size="large"
+            />
+          </a-form-item>
+        </a-col>
+
+        <!-- 右侧列 -->
+        <a-col :span="12">
+          <!-- 规格型号 -->
+          <a-form-item
+            label="规格型号"
+            name="model"
+            :label-col="{ span: 8 }"
+            :wrapper-col="{ span: 16 }"
+            :required="true"
+          >
+            <a-input
+              v-model:value="formState.model"
+              placeholder=""
+              size="large"
+            />
+          </a-form-item>
+
+          <!-- 类别名称 -->
+          <a-form-item
+            label="类别名称"
+            name="category"
+            :label-col="{ span: 8 }"
+            :wrapper-col="{ span: 16 }"
+            :required="true"
+          >
+            <a-select
+              v-model:value="formState.category"
+              placeholder=""
+              size="large"
+              allow-clear
+            >
+              <a-select-option 
+                v-for="cat in categoryOptions" 
+                :key="cat.value"
+                :value="cat.value"
+              >
+                {{ cat.label }}
+              </a-select-option>
+            </a-select>
+          </a-form-item>
+
+          <!-- 网卡数量 -->
+          <a-form-item
+            label="网卡数量"
+            name="networkCardCount"
+            :label-col="{ span: 8 }"
+            :wrapper-col="{ span: 16 }"
+          >
+            <a-input
+              v-model:value="formState.networkCardCount"
+              placeholder=""
+              size="large"
+            />
+          </a-form-item>
+        </a-col>
+      </a-row>
+
+      <!-- 底部按钮 -->
+      <a-form-item :wrapper-col="{ offset: 4, span: 18 }">
+        <div class="form-buttons">
+          <a-button @click="handleCancel" size="large">
+            <CloseOutlined /> 取消
+          </a-button>
+          <a-button 
+            type="primary" 
+            @click="handleSave" 
+            size="large"
+            :loading="saveLoading"
+            style="background-color: #722ed1; border-color: #722ed1;"
+          >
+            <SaveOutlined /> 保存
+          </a-button>
+        </div>
+      </a-form-item>
+    </a-form>
+  </a-modal>
+</template>
+
+<script setup>
+import { ref, reactive, computed, watch } from 'vue';
+import { SaveOutlined, CloseOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
+
+// 定义 props
+const props = defineProps({
+  // 控制弹框显示
+  visible: {
+    type: Boolean,
+    default: false
+  },
+  // 应用资产选项
+  assetOptions: {
+    type: Array,
+    default: () => [
+      { value: 'asset1', label: '应用资产1' },
+      { value: 'asset2', label: '应用资产2' },
+      { value: 'asset3', label: '应用资产3' }
+    ]
+  },
+  // 运维负责人选项
+  maintainerOptions: {
+    type: Array,
+    default: () => [
+      { value: 'user1', label: '张三' },
+      { value: 'user2', label: '李四' },
+      { value: 'user3', label: '王五' },
+      { value: 'user4', label: '赵六' }
+    ]
+  },
+  // 类别选项
+  categoryOptions: {
+    type: Array,
+    default: () => [
+      { value: 'server', label: '服务器' },
+      { value: 'storage', label: '存储设备' },
+      { value: 'network', label: '网络设备' },
+      { value: 'security', label: '安全设备' }
+    ]
+  },
+  // 保存按钮loading状态
+  saveLoading: {
+    type: Boolean,
+    default: false
+  }
+});
+
+// 定义 emits
+const emit = defineEmits(['update:visible', 'save', 'cancel']);
+
+// 计算属性：控制弹框显示
+const modalVisible = computed({
+  get: () => props.visible,
+  set: (value) => emit('update:visible', value)
+});
+
+// 表单引用
+const formRef = ref();
+
+// 表单数据
+const formState = reactive({
+  hostname: '',
+  ip: '',
+  assetName: undefined,
+  brand: '',
+  maintainer: [],
+  osVersion: '',
+  model: '',
+  category: undefined,
+  networkCardCount: ''
+});
+
+// IP地址验证规则
+const validateIP = (rule, value) => {
+  if (!value) {
+    return Promise.reject('请输入IP地址');
+  }
+  const ipPattern = /^(\d{1,3}\.){3}\d{1,3}$/;
+  if (!ipPattern.test(value)) {
+    return Promise.reject('请输入正确的IP地址格式');
+  }
+  const parts = value.split('.');
+  for (const part of parts) {
+    if (parseInt(part) > 255) {
+      return Promise.reject('IP地址每段数字不能超过255');
+    }
+  }
+  return Promise.resolve();
+};
+
+// 表单验证规则
+const rules = {
+  hostname: [
+    { required: true, message: '请输入主机名', trigger: 'blur' },
+    { min: 2, max: 50, message: '主机名长度应在2-50个字符之间', trigger: 'blur' }
+  ],
+  ip: [
+    { required: true, validator: validateIP, trigger: 'blur' }
+  ],
+  assetName: [
+    { required: true, message: '请选择应用资产名称', trigger: 'change' }
+  ],
+  brand: [
+    { required: true, message: '请输入品牌', trigger: 'blur' },
+    { max: 30, message: '品牌名称不能超过30个字符', trigger: 'blur' }
+  ],
+  maintainer: [
+    { required: true, message: '请选择运维负责人', trigger: 'change', type: 'array' }
+  ],
+  model: [
+    { required: true, message: '请输入规格型号', trigger: 'blur' },
+    { max: 50, message: '规格型号不能超过50个字符', trigger: 'blur' }
+  ],
+  category: [
+    { required: true, message: '请选择类别名称', trigger: 'change' }
+  ],
+  osVersion: [
+    { max: 50, message: '操作系统版本不能超过50个字符', trigger: 'blur' }
+  ],
+  networkCardCount: [
+    { pattern: /^\d*$/, message: '网卡数量必须为数字', trigger: 'blur' }
+  ]
+};
+
+// 取消操作
+const handleCancel = () => {
+  modalVisible.value = false;
+  formRef.value?.resetFields();
+  emit('cancel');
+};
+
+// 保存操作
+const handleSave = async () => {
+  try {
+    // 验证表单
+    await formRef.value.validateFields();
+    
+    // 触发保存事件，传递表单数据
+    emit('save', { ...formState });
+    
+  } catch (error) {
+    // 验证失败，表单会自动显示错误信息
+    console.log('Validation failed:', error);
+  }
+};
+
+// 监听 visible 变化，重置表单
+watch(modalVisible, (newVal) => {
+  if (!newVal) {
+    formRef.value?.resetFields();
+  }
+});
+
+// 暴露方法给父组件
+defineExpose({
+  resetForm: () => {
+    formRef.value?.resetFields();
+  },
+  getFormData: () => {
+    return { ...formState };
+  },
+  setFormData: (data) => {
+    Object.assign(formState, data);
+  }
+});
+</script>
+
+<style scoped>
+/* 表单按钮样式 */
+.form-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.form-buttons .ant-btn {
+  min-width: 90px;
+  height: 36px;
+}
+
+/* 必填标记样式 */
+:deep(.ant-form-item-required::before) {
+  display: inline-block;
+  margin-right: 4px;
+  color: #ff4d4f;
+  font-size: 14px;
+  font-family: SimSun, sans-serif;
+  line-height: 1;
+  content: '*';
+}
+
+/* 表单项样式调整 */
+:deep(.ant-form-item) {
+  margin-bottom: 20px;
+}
+
+:deep(.ant-form-item-label) {
+  text-align: right;
+}
+
+:deep(.ant-form-item-label > label) {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.85);
+  height: 40px;
+  line-height: 40px;
+}
+
+/* 输入框样式 */
+:deep(.ant-input),
+:deep(.ant-select-selector),
+:deep(.ant-input-number) {
+  border-radius: 4px;
+  height: 40px !important;
+}
+
+:deep(.ant-select-single .ant-select-selector) {
+  height: 40px !important;
+  padding: 4px 11px;
+}
+
+:deep(.ant-select-single .ant-select-selector .ant-select-selection-search) {
+  height: 32px;
+  line-height: 32px;
+}
+
+:deep(.ant-select-multiple .ant-select-selector) {
+  min-height: 40px !important;
+  padding: 4px 11px;
+}
+
+/* 错误提示样式 */
+:deep(.ant-form-item-has-error .ant-input),
+:deep(.ant-form-item-has-error .ant-select-selector),
+:deep(.ant-form-item-has-error .ant-input-number) {
+  border-color: #ff4d4f !important;
+}
+
+:deep(.ant-form-item-explain-error) {
+  font-size: 12px;
+  min-height: 22px;
+}
+
+/* 弹框样式 */
+:deep(.ant-modal-header) {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+:deep(.ant-modal-title) {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+:deep(.ant-modal-close) {
+  top: 16px;
+  right: 24px;
+}
+
+:deep(.ant-modal-body) {
+  padding: 24px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+/* 调整多选下拉框的选中项样式 */
+:deep(.ant-select-selection-item) {
+  height: 24px;
+  line-height: 22px;
+  margin: 2px 4px 2px 0;
+}
+</style>
+```
+
+现在布局已经调整为：
+
+## 布局结构：
+
+1. **前三个字段独占一行（100%宽度）**：
+   - 主机名
+   - IP
+   - 应用资产名称
+
+2. **后续字段两列布局**：
+   - **左侧列**：
+     - 品牌
+     - 运维负责人
+     - 操作系统发行版本
+   - **右侧列**：
+     - 规格型号
+     - 类别名称
+     - 网卡数量
+
+3. **底部按钮**：右对齐，取消和保存按钮
+
+这样的布局完全符合图片中的展示效果，前三个重要字段独占一行，更加突出，后续字段采用两列布局，节省空间。
