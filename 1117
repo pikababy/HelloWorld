@@ -1,0 +1,341 @@
+<template>
+  <a-modal 
+    v-model:open="visible" 
+    title="新增组件及中间件信息"
+    :width="600"
+    :mask-closable="false"
+    @ok="handleOk"
+    @cancel="handleCancel"
+  >
+    <template #footer>
+      <a-button @click="handleCancel">取消</a-button>
+      <a-button type="primary" @click="handleOk" :loading="loading">保存</a-button>
+    </template>
+    
+    <a-form 
+      ref="formRef"
+      :model="formState" 
+      :label-col="{ span: 6 }"
+      :wrapper-col="{ span: 16 }"
+      :rules="rules"
+    >
+      <a-form-item label="组件名称" name="componentName" required>
+        <a-input 
+          v-model:value="formState.componentName" 
+          placeholder="请输入组件名称" 
+        />
+      </a-form-item>
+      
+      <a-form-item label="组件版本" name="componentVersion">
+        <a-input 
+          v-model:value="formState.componentVersion" 
+          placeholder="请输入组件版本" 
+        />
+      </a-form-item>
+      
+      <a-form-item label="应用资产名称" name="appAssetName" required>
+        <a-select 
+          v-model:value="formState.appAssetName" 
+          placeholder="请选择应用资产名称"
+          allow-clear
+        >
+          <a-select-option 
+            v-for="item in appAssetOptions" 
+            :key="item.value" 
+            :value="item.value"
+          >
+            {{ item.label }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+      
+      <a-form-item label="主机名" name="hostname" required>
+        <a-input 
+          v-model:value="formState.hostname" 
+          placeholder="请输入主机名" 
+        />
+      </a-form-item>
+      
+      <a-form-item label="IP" name="ip" required>
+        <a-input 
+          v-model:value="formState.ip" 
+          placeholder="请输入IP地址" 
+        />
+      </a-form-item>
+      
+      <a-form-item label="组件来源" name="componentSource" required>
+        <a-select 
+          v-model:value="formState.componentSource" 
+          placeholder="请选择组件来源"
+          allow-clear
+        >
+          <a-select-option 
+            v-for="item in componentSourceOptions" 
+            :key="item.value" 
+            :value="item.value"
+          >
+            {{ item.label }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+      
+      <a-form-item label="组件类型" name="componentType" required>
+        <a-select 
+          v-model:value="formState.componentType" 
+          placeholder="请选择组件类型"
+          allow-clear
+        >
+          <a-select-option 
+            v-for="item in componentTypeOptions" 
+            :key="item.value" 
+            :value="item.value"
+          >
+            {{ item.label }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+      
+      <a-form-item label="组件存放路径" name="componentPath" required>
+        <a-input 
+          v-model:value="formState.componentPath" 
+          placeholder="请输入组件存放路径" 
+        />
+      </a-form-item>
+      
+      <a-form-item label="风险级别" name="riskLevel" required>
+        <a-select 
+          v-model:value="formState.riskLevel" 
+          placeholder="请选择风险级别"
+          allow-clear
+        >
+          <a-select-option value="low">低</a-select-option>
+          <a-select-option value="medium">中</a-select-option>
+          <a-select-option value="high">高</a-select-option>
+          <a-select-option value="critical">严重</a-select-option>
+        </a-select>
+      </a-form-item>
+      
+      <a-form-item label="是否已评估处理" name="isEvaluated" required>
+        <a-select 
+          v-model:value="formState.isEvaluated" 
+          placeholder="请选择是否已评估处理"
+          allow-clear
+        >
+          <a-select-option :value="true">是</a-select-option>
+          <a-select-option :value="false">否</a-select-option>
+        </a-select>
+      </a-form-item>
+    </a-form>
+  </a-modal>
+</template>
+
+<script setup>
+import { ref, reactive, watch } from 'vue';
+import { message } from 'ant-design-vue';
+
+// Props
+const props = defineProps({
+  modelValue: {
+    type: Boolean,
+    default: false
+  },
+  // 编辑模式时传入的数据
+  editData: {
+    type: Object,
+    default: null
+  }
+});
+
+// Emits
+const emit = defineEmits(['update:modelValue', 'onSave', 'onCancel']);
+
+// 表单ref
+const formRef = ref(null);
+const loading = ref(false);
+
+// 控制弹框显示
+const visible = ref(props.modelValue);
+
+// 监听props变化
+watch(() => props.modelValue, (newVal) => {
+  visible.value = newVal;
+  if (newVal && props.editData) {
+    // 如果是编辑模式，填充表单数据
+    Object.assign(formState, props.editData);
+  } else if (newVal) {
+    // 如果是新增模式，重置表单
+    resetForm();
+  }
+});
+
+watch(visible, (newVal) => {
+  emit('update:modelValue', newVal);
+});
+
+// 表单数据
+const formState = reactive({
+  componentName: '',
+  componentVersion: '',
+  appAssetName: undefined,
+  hostname: '',
+  ip: '',
+  componentSource: undefined,
+  componentType: undefined,
+  componentPath: '',
+  riskLevel: undefined,
+  isEvaluated: undefined
+});
+
+// 下拉选项数据（实际项目中可能从接口获取）
+const appAssetOptions = ref([
+  { value: 'app1', label: '应用资产1' },
+  { value: 'app2', label: '应用资产2' },
+  { value: 'app3', label: '应用资产3' }
+]);
+
+const componentSourceOptions = ref([
+  { value: 'source1', label: '内部开发' },
+  { value: 'source2', label: '外部采购' },
+  { value: 'source3', label: '开源组件' }
+]);
+
+const componentTypeOptions = ref([
+  { value: 'middleware', label: '中间件' },
+  { value: 'database', label: '数据库' },
+  { value: 'framework', label: '框架' },
+  { value: 'tool', label: '工具' }
+]);
+
+// 表单验证规则
+const rules = {
+  componentName: [
+    { required: true, message: '请输入组件名称', trigger: 'blur' },
+    { min: 2, max: 50, message: '组件名称长度应在 2 到 50 个字符之间', trigger: 'blur' }
+  ],
+  componentVersion: [
+    { pattern: /^[\d.]+$/, message: '版本号格式不正确', trigger: 'blur' }
+  ],
+  appAssetName: [
+    { required: true, message: '请选择应用资产名称', trigger: 'change' }
+  ],
+  hostname: [
+    { required: true, message: '请输入主机名', trigger: 'blur' },
+    { max: 100, message: '主机名长度不能超过 100 个字符', trigger: 'blur' }
+  ],
+  ip: [
+    { required: true, message: '请输入IP地址', trigger: 'blur' },
+    { 
+      pattern: /^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/, 
+      message: '请输入正确的IP地址格式', 
+      trigger: 'blur' 
+    }
+  ],
+  componentSource: [
+    { required: true, message: '请选择组件来源', trigger: 'change' }
+  ],
+  componentType: [
+    { required: true, message: '请选择组件类型', trigger: 'change' }
+  ],
+  componentPath: [
+    { required: true, message: '请输入组件存放路径', trigger: 'blur' },
+    { max: 200, message: '路径长度不能超过 200 个字符', trigger: 'blur' }
+  ],
+  riskLevel: [
+    { required: true, message: '请选择风险级别', trigger: 'change' }
+  ],
+  isEvaluated: [
+    { required: true, message: '请选择是否已评估处理', trigger: 'change' }
+  ]
+};
+
+// 重置表单
+const resetForm = () => {
+  formState.componentName = '';
+  formState.componentVersion = '';
+  formState.appAssetName = undefined;
+  formState.hostname = '';
+  formState.ip = '';
+  formState.componentSource = undefined;
+  formState.componentType = undefined;
+  formState.componentPath = '';
+  formState.riskLevel = undefined;
+  formState.isEvaluated = undefined;
+  if (formRef.value) {
+    formRef.value.clearValidate();
+  }
+};
+
+// 确认提交
+const handleOk = async () => {
+  try {
+    // 表单验证
+    await formRef.value.validate();
+    
+    loading.value = true;
+    
+    // 模拟API调用延迟
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // 触发保存事件，将表单数据传递给父组件
+    emit('onSave', { ...formState });
+    
+    message.success('保存成功！');
+    visible.value = false;
+    
+    // 重置表单
+    resetForm();
+  } catch (error) {
+    console.error('表单验证失败:', error);
+    message.error('请填写完整的表单信息');
+  } finally {
+    loading.value = false;
+  }
+};
+
+// 取消
+const handleCancel = () => {
+  emit('onCancel');
+  visible.value = false;
+  // 重置表单
+  resetForm();
+};
+
+// 暴露给父组件的方法
+defineExpose({
+  resetForm,
+  validate: () => formRef.value?.validate()
+});
+</script>
+
+<style lang="less" scoped>
+// 如果需要自定义样式，可以在这里添加
+:deep(.ant-modal-header) {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.ant-modal-body) {
+  padding: 24px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+:deep(.ant-form-item) {
+  margin-bottom: 24px;
+}
+
+:deep(.ant-form-item-label) {
+  text-align: right;
+}
+
+:deep(.ant-modal-footer) {
+  padding: 10px 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+// 必填项标记
+:deep(.ant-form-item-required::before) {
+  color: #ff4d4f;
+  margin-right: 4px;
+}
+</style>
