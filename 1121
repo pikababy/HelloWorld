@@ -1,0 +1,174 @@
+根据您上传的图片，这是一个确认操作的弹框。使用 Ant Design Vue 可以通过 `Modal` 组件来实现。以下是几种实现方式：
+
+## 方法一：使用 Modal.confirm() （推荐）
+
+```vue
+<template>
+  <a-button @click="showConfirm">打开确认框</a-button>
+</template>
+
+<script>
+import { Modal } from 'ant-design-vue';
+
+export default {
+  methods: {
+    showConfirm() {
+      Modal.confirm({
+        title: '操作确认',
+        content: '是否将选择的数据设置为未涉及？',
+        okText: '确定',
+        cancelText: '取消',
+        centered: true, // 垂直居中
+        onOk() {
+          console.log('点击了确定');
+          // 执行确定操作的逻辑
+        },
+        onCancel() {
+          console.log('点击了取消');
+        },
+      });
+    }
+  }
+}
+</script>
+```
+
+## 方法二：使用 Modal 组件
+
+```vue
+<template>
+  <div>
+    <a-button @click="showModal">打开确认框</a-button>
+    
+    <a-modal
+      v-model:visible="visible"
+      title="操作确认"
+      ok-text="确定"
+      cancel-text="取消"
+      centered
+      @ok="handleOk"
+      @cancel="handleCancel"
+    >
+      <p>是否将选择的数据设置为未涉及？</p>
+    </a-modal>
+  </div>
+</template>
+
+<script>
+import { ref } from 'vue';
+
+export default {
+  setup() {
+    const visible = ref(false);
+
+    const showModal = () => {
+      visible.value = true;
+    };
+
+    const handleOk = () => {
+      console.log('确定操作');
+      visible.value = false;
+      // 执行确定操作的逻辑
+    };
+
+    const handleCancel = () => {
+      console.log('取消操作');
+      visible.value = false;
+    };
+
+    return {
+      visible,
+      showModal,
+      handleOk,
+      handleCancel,
+    };
+  },
+};
+</script>
+```
+
+## 方法三：Vue 3 Composition API + TypeScript
+
+```vue
+<template>
+  <a-button type="primary" @click="showConfirm">操作确认</a-button>
+</template>
+
+<script setup lang="ts">
+import { Modal } from 'ant-design-vue';
+import { ExclamationCircleOutlined } from '@ant-design/icons-vue';
+import { createVNode } from 'vue';
+
+const showConfirm = () => {
+  Modal.confirm({
+    title: '操作确认',
+    icon: createVNode(ExclamationCircleOutlined),
+    content: '是否将选择的数据设置为未涉及？',
+    okText: '确定',
+    okType: 'primary',
+    cancelText: '取消',
+    centered: true,
+    maskClosable: false, // 点击遮罩层不关闭
+    async onOk() {
+      try {
+        // 可以返回 Promise 实现异步关闭
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('操作成功');
+      } catch {
+        console.log('操作失败');
+      }
+    },
+    onCancel() {
+      console.log('取消操作');
+    },
+  });
+};
+</script>
+```
+
+## 样式定制
+
+如果需要完全匹配您图片中的样式，可以添加自定义样式：
+
+```vue
+<style scoped>
+/* 自定义确定按钮颜色 */
+:deep(.ant-modal-confirm-btns .ant-btn-primary) {
+  background-color: #5b4fcf;
+  border-color: #5b4fcf;
+}
+
+/* 自定义标题样式 */
+:deep(.ant-modal-confirm-title) {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* 自定义内容样式 */
+:deep(.ant-modal-confirm-content) {
+  font-size: 14px;
+  color: #333;
+}
+</style>
+```
+
+## 注意事项
+
+1. **安装依赖**：确保已安装 `ant-design-vue`
+   ```bash
+   npm install ant-design-vue
+   ```
+
+2. **全局注册**（main.js）：
+   ```javascript
+   import { createApp } from 'vue';
+   import Antd from 'ant-design-vue';
+   import 'ant-design-vue/dist/reset.css';
+   
+   const app = createApp(App);
+   app.use(Antd);
+   ```
+
+3. **按需引入**：如果只需要 Modal 组件，可以按需引入以减小打包体积。
+
+推荐使用**方法一**的 `Modal.confirm()`，因为它更简洁，不需要管理状态，适合简单的确认场景。
