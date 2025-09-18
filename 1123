@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>服务器列表弹框</title>
+  <!-- Ant Design Vue CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/antd.min.css">
+  <style>
+    #app {
+      padding: 20px;
+      background-color: #f0f2f5;
+      min-height: 100vh;
+    }
+    
+    .server-list-modal .ant-modal-title {
+      font-size: 16px;
+      color: #333;
+    }
+    
+    .checkbox-section {
+      margin-bottom: 16px;
+      padding: 12px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    
+    .checkbox-section .ant-checkbox-group {
+      display: flex;
+      gap: 20px;
+    }
+    
+    .checkbox-section .ant-checkbox-wrapper {
+      margin-left: 0;
+    }
+    
+    .server-table-wrapper {
+      min-height: 400px;
+      background: #fff;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      padding: 0;
+    }
+    
+    .modal-footer-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    
+    .confirm-btn {
+      background-color: #1890ff !important;
+      border-color: #1890ff !important;
+    }
+    
+    /* 调整表格样式 */
+    .ant-table-wrapper {
+      border-radius: 4px;
+    }
+    
+    .ant-table-thead > tr > th {
+      background-color: #fafafa;
+      font-weight: 600;
+    }
+    
+    .ant-table-tbody > tr:hover > td {
+      background-color: #f5f5f5;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <a-button type="primary" @click="showModal">打开服务器列表</a-button>
+    
+    <a-modal
+      v-model:open="visible"
+      title="qingtengyun服务器列表"
+      :width="900"
+      class="server-list-modal"
+      :footer="null"
+    >
+      <!-- 多选框组 -->
+      <div class="checkbox-section">
+        <a-checkbox-group v-model:value="checkedOptions" :options="checkboxOptions" />
+      </div>
+      
+      <!-- 服务器列表表格 -->
+      <div class="server-table-wrapper">
+        <a-table 
+          :columns="columns" 
+          :data-source="dataSource"
+          :row-selection="rowSelection"
+          :pagination="pagination"
+          size="middle"
+          bordered
+          :scroll="{ y: 300 }"
+        >
+          <template #bodyCell="{ column, text, record }">
+            <template v-if="column.dataIndex === 'status'">
+              <a-tag :color="getStatusColor(text)">{{ text }}</a-tag>
+            </template>
+          </template>
+        </a-table>
+      </div>
+      
+      <!-- 自定义底部按钮 -->
+      <div class="modal-footer-buttons" style="margin-top: 20px;">
+        <a-button @click="handleCancel" size="large">
+          取消
+        </a-button>
+        <a-button type="primary" @click="handleConfirm" size="large" class="confirm-btn">
+          <span style="padding: 0 16px;">✓ 确认</span>
+        </a-button>
+      </div>
+    </a-modal>
+  </div>
+
+  <!-- Vue 3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <!-- Ant Design Vue -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/antd.min.js"></script>
+  
+  <script>
+    const { createApp, ref, computed } = Vue;
+    
+    const app = createApp({
+      setup() {
+        const visible = ref(false);
+        const checkedOptions = ref(['office']); // 默认选中办公
+        const selectedRowKeys = ref([]);
+        
+        // 复选框选项
+        const checkboxOptions = [
+          { label: '办公', value: 'office' },
+          { label: '生产', value: 'production' },
+          { label: '测试', value: 'test' },
+          { label: '开发', value: 'development' },
+          { label: '备份', value: 'backup' }
+        ];
+        
+        const columns = [
+          {
+            title: '服务器名称',
+            dataIndex: 'name',
+            key: 'name',
+            width: 150
+          },
+          {
+            title: 'IP地址',
+            dataIndex: 'ip',
+            key: 'ip',
+            width: 140
+          },
+          {
+            title: '状态',
+            dataIndex: 'status',
+            key: 'status',
+            width: 100,
+            align: 'center'
+          },
+          {
+            title: '用途',
+            dataIndex: 'purpose',
+            key: 'purpose',
+            width: 120
+          },
+          {
+            title: '备注',
+            dataIndex: 'remark',
+            key: 'remark',
+            ellipsis: true
+          }
+        ];
+        
+        const dataSource = ref([
+          {
+            key: '1',
+            name: 'qingteng-web-01',
+            ip: '192.168.1.100',
+            status: '运行中',
+            purpose: '生产环境',
+            remark: '主Web服务器，负责前端应用部署'
+          },
+          {
+            key: '2',
+            name: 'qingteng-api-01',
+            ip: '192.168.1.101',
+            status: '运行中',
+            purpose: '生产环境',
+            remark: 'API服务器，处理所有接口请求'
+          },
+          {
+            key: '3',
+            name: 'qingteng-db-01',
+            ip: '192.168.1.102',
+            status: '运行中',
+            purpose: '数据库',
+            remark: 'MySQL主数据库服务器'
+          },
+          {
+            key: '4',
+            name: 'qingteng-test-01',
+            ip: '192.168.1.103',
+            status: '维护中',
+            purpose: '测试环境',
+            remark: '测试环境服务器'
+          },
+          {
+            key: '5',
+            name: 'qingteng-dev-01',
+            ip: '192.168.1.104',
+            status: '运行中',
+            purpose: '开发环境',
+            remark: '开发环境服务器'
+          },
+          {
+            key: '6',
+            name: 'qingteng-backup-01',
+            ip: '192.168.1.105',
+            status: '运行中',
+            purpose: '备份',
+            remark: '数据备份服务器，每日自动备份'
+          },
+          {
+            key: '7',
+            name: 'qingteng-monitor-01',
+            ip: '192.168.1.106',
+            status: '运行中',
+            purpose: '监控',
+            remark: '系统监控服务器'
+          }
+        ]);
+        
+        // 分页配置
+        const pagination = {
+          pageSize: 10,
+          showSizeChanger: false,
+          showTotal: (total) => `共 ${total} 条`
+        };
+        
+        // 多选配置
+        const rowSelection = computed(() => ({
+          selectedRowKeys: selectedRowKeys.value,
+          onChange: (keys, rows) => {
+            selectedRowKeys.value = keys;
+            console.log('选中的keys:', keys);
+            console.log('选中的行:', rows);
+          },
+          getCheckboxProps: (record) => ({
+            disabled: record.status === '维护中', // 维护中的服务器不可选
+            name: record.name
+          })
+        }));
+        
+        // 获取状态颜色
+        const getStatusColor = (status) => {
+          const colorMap = {
+            '运行中': 'green',
+            '维护中': 'orange',
+            '已停止': 'red'
+          };
+          return colorMap[status] || 'default';
+        };
+        
+        const showModal = () => {
+          visible.value = true;
+          selectedRowKeys.value = []; // 重置选择
+          checkedOptions.value = ['office']; // 重置为默认选中办公
+        };
+        
+        const handleCancel = () => {
+          visible.value = false;
+          selectedRowKeys.value = [];
+          checkedOptions.value = ['office']; // 重置复选框选项
+          console.log('取消操作');
+        };
+        
+        const handleConfirm = () => {
+          const selectedServers = dataSource.value.filter(item => 
+            selectedRowKeys.value.includes(item.key)
+          );
+          
+          console.log('确认选择的服务器:', selectedServers);
+          console.log('选中的类型:', checkedOptions.value);
+          
+          if (selectedRowKeys.value.length === 0) {
+            antd.message.warning('请至少选择一台服务器');
+            return;
+          }
+          
+          if (checkedOptions.value.length === 0) {
+            antd.message.warning('请至少选择一个服务器类型');
+            return;
+          }
+          
+          antd.message.success(`已选择 ${selectedRowKeys.value.length} 台服务器，类型：${checkedOptions.value.join(', ')}`);
+          visible.value = false;
+        };
+        
+        return {
+          visible,
+          checkedOptions,
+          checkboxOptions,
+          columns,
+          dataSource,
+          rowSelection,
+          pagination,
+          selectedRowKeys,
+          showModal,
+          handleCancel,
+          handleConfirm,
+          getStatusColor
+        };
+      }
+    });
+    
+    app.use(antd);
+    app.mount('#app');
+  </script>
+</body>
+</html>
