@@ -1,0 +1,179 @@
+<template>
+  <a-modal
+    v-model:open="modalVisible"
+    :title="title"
+    :width="600"
+    :footer="null"
+    class="server-list-modal"
+  >
+    <!-- 多选框组 -->
+    <div class="checkbox-container">
+      <a-checkbox-group 
+        v-model:value="checkedOptions" 
+        :options="options"
+        class="checkbox-group"
+      >
+        <template #label="{ value, label }">
+          <span class="checkbox-label">{{ label }}</span>
+        </template>
+      </a-checkbox-group>
+    </div>
+    
+    <!-- 底部按钮 -->
+    <div class="modal-footer">
+      <a-button @click="handleCancel" size="large">
+        取消
+      </a-button>
+      <a-button 
+        type="primary" 
+        @click="handleConfirm" 
+        size="large"
+        class="confirm-btn"
+      >
+        ✓ 确认
+      </a-button>
+    </div>
+  </a-modal>
+</template>
+
+<script>
+import { ref, computed, watch, defineComponent } from 'vue';
+import { message } from 'ant-design-vue';
+
+export default defineComponent({
+  name: 'ServerListModal',
+  
+  props: {
+    visible: {
+      type: Boolean,
+      default: false
+    },
+    title: {
+      type: String,
+      default: 'qingtengyun服务器列表'
+    },
+    options: {
+      type: Array,
+      default: () => [
+        { label: '办公', value: 'office' },
+        { label: '生产', value: 'production' },
+        { label: '测试', value: 'test' },
+        { label: '开发', value: 'development' },
+        { label: '备份', value: 'backup' }
+      ]
+    },
+    defaultChecked: {
+      type: Array,
+      default: () => ['office']
+    }
+  },
+  
+  emits: ['update:visible', 'confirm', 'cancel'],
+  
+  setup(props, { emit }) {
+    // 内部选中状态
+    const checkedOptions = ref([...props.defaultChecked]);
+    
+    // 计算属性：控制弹框显示
+    const modalVisible = computed({
+      get: () => props.visible,
+      set: (val) => emit('update:visible', val)
+    });
+    
+    // 监听弹框打开
+    watch(() => props.visible, (newVal) => {
+      if (newVal) {
+        // 重置选中状态为默认值
+        checkedOptions.value = [...props.defaultChecked];
+      }
+    });
+    
+    // 取消操作
+    const handleCancel = () => {
+      checkedOptions.value = [...props.defaultChecked];
+      emit('cancel');
+      emit('update:visible', false);
+    };
+    
+    // 确认操作
+    const handleConfirm = () => {
+      if (checkedOptions.value.length === 0) {
+        message.warning('请至少选择一个选项');
+        return;
+      }
+      
+      // 获取选中的选项详情
+      const selectedOptions = props.options.filter(opt => 
+        checkedOptions.value.includes(opt.value)
+      );
+      
+      // 发送确认事件，包含选中的值和完整选项信息
+      emit('confirm', {
+        values: checkedOptions.value,
+        options: selectedOptions
+      });
+      
+      emit('update:visible', false);
+      
+      message.success(`已选择: ${checkedOptions.value.join(', ')}`);
+    };
+    
+    return {
+      modalVisible,
+      checkedOptions,
+      handleCancel,
+      handleConfirm
+    };
+  }
+});
+</script>
+
+<style scoped>
+.server-list-modal {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+.checkbox-container {
+  padding: 20px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  min-height: 200px;
+}
+
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.checkbox-label {
+  font-size: 15px;
+  color: #333;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.confirm-btn {
+  padding: 0 24px;
+}
+
+/* 覆盖 Ant Design 默认样式 */
+:deep(.ant-checkbox-wrapper) {
+  margin-left: 0;
+  font-size: 15px;
+}
+
+:deep(.ant-checkbox-wrapper:hover) {
+  color: #1890ff;
+}
+
+:deep(.ant-checkbox-checked .ant-checkbox-inner) {
+  background-color: #1890ff;
+  border-color: #1890ff;
+}
+</style>
