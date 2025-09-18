@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>服务器列表弹框</title>
+  <!-- Ant Design Vue CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/reset.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/antd.min.css">
+  <style>
+    #app {
+      padding: 20px;
+      background-color: #f0f2f5;
+      min-height: 100vh;
+    }
+    
+    .server-list-modal .ant-modal-title {
+      font-size: 16px;
+      color: #333;
+    }
+    
+    .checkbox-section {
+      margin-bottom: 16px;
+      padding: 12px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    
+    .server-table-wrapper {
+      min-height: 300px;
+      background: #fff;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      padding: 16px;
+    }
+    
+    .modal-footer-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    
+    .confirm-btn {
+      background-color: #1890ff !important;
+      border-color: #1890ff !important;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <a-button type="primary" @click="showModal">打开服务器列表</a-button>
+    
+    <a-modal
+      v-model:open="visible"
+      title="qingtengyun服务器列表"
+      :width="800"
+      class="server-list-modal"
+      :footer="null"
+    >
+      <!-- 办公复选框 -->
+      <div class="checkbox-section">
+        <a-checkbox v-model:checked="officeChecked">办公</a-checkbox>
+      </div>
+      
+      <!-- 服务器列表表格 -->
+      <div class="server-table-wrapper">
+        <a-table 
+          :columns="columns" 
+          :data-source="dataSource"
+          :pagination="false"
+          size="middle"
+          bordered
+        >
+          <template #bodyCell="{ column, record }">
+            <template v-if="column.key === 'selection'">
+              <a-checkbox v-model:checked="record.selected"></a-checkbox>
+            </template>
+          </template>
+        </a-table>
+      </div>
+      
+      <!-- 自定义底部按钮 -->
+      <div class="modal-footer-buttons" style="margin-top: 20px;">
+        <a-button @click="handleCancel" size="large">
+          取消
+        </a-button>
+        <a-button type="primary" @click="handleConfirm" size="large" class="confirm-btn">
+          <span style="padding: 0 16px;">✓ 确认</span>
+        </a-button>
+      </div>
+    </a-modal>
+  </div>
+
+  <!-- Vue 3 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/3.3.4/vue.global.prod.min.js"></script>
+  <!-- Ant Design Vue -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ant-design-vue/4.0.7/antd.min.js"></script>
+  
+  <script>
+    const { createApp, ref } = Vue;
+    
+    const app = createApp({
+      setup() {
+        const visible = ref(false);
+        const officeChecked = ref(true);
+        
+        const columns = [
+          {
+            title: '',
+            key: 'selection',
+            width: 50,
+            align: 'center'
+          },
+          {
+            title: '服务器名称',
+            dataIndex: 'name',
+            key: 'name',
+            width: 150
+          },
+          {
+            title: 'IP地址',
+            dataIndex: 'ip',
+            key: 'ip',
+            width: 120
+          },
+          {
+            title: '状态',
+            dataIndex: 'status',
+            key: 'status',
+            width: 80
+          },
+          {
+            title: '用途',
+            dataIndex: 'purpose',
+            key: 'purpose',
+            width: 100
+          },
+          {
+            title: '备注',
+            dataIndex: 'remark',
+            key: 'remark'
+          }
+        ];
+        
+        const dataSource = ref([
+          {
+            key: '1',
+            name: 'Server-01',
+            ip: '192.168.1.100',
+            status: '运行中',
+            purpose: '生产环境',
+            remark: '主服务器',
+            selected: false
+          },
+          {
+            key: '2',
+            name: 'Server-02',
+            ip: '192.168.1.101',
+            status: '运行中',
+            purpose: '测试环境',
+            remark: '测试服务器',
+            selected: false
+          },
+          {
+            key: '3',
+            name: 'Server-03',
+            ip: '192.168.1.102',
+            status: '维护中',
+            purpose: '开发环境',
+            remark: '开发服务器',
+            selected: false
+          },
+          {
+            key: '4',
+            name: 'Server-04',
+            ip: '192.168.1.103',
+            status: '运行中',
+            purpose: '备份',
+            remark: '备份服务器',
+            selected: false
+          }
+        ]);
+        
+        const showModal = () => {
+          visible.value = true;
+        };
+        
+        const handleCancel = () => {
+          visible.value = false;
+          console.log('取消操作');
+        };
+        
+        const handleConfirm = () => {
+          const selectedServers = dataSource.value.filter(item => item.selected);
+          console.log('确认选择的服务器:', selectedServers);
+          console.log('办公选项:', officeChecked.value);
+          
+          // 这里可以添加确认后的逻辑
+          antd.message.success(`已选择 ${selectedServers.length} 台服务器`);
+          
+          visible.value = false;
+        };
+        
+        return {
+          visible,
+          officeChecked,
+          columns,
+          dataSource,
+          showModal,
+          handleCancel,
+          handleConfirm
+        };
+      }
+    });
+    
+    app.use(antd);
+    app.mount('#app');
+  </script>
+</body>
+</html>
