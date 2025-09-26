@@ -1,0 +1,88 @@
+看到你的截图中 `createTime` 字段是 ISO 8601 格式的时间字符串（如 `"2025-03-12T14:50:48+08:00"`），以下是纯 JavaScript 转换为 `YYYY-MM-DD HH:mm:ss` 格式的几种方法：
+
+## 方法一：使用 Date 对象和手动格式化
+
+```javascript
+function formatDateTime(dateTimeStr) {
+  const date = new Date(dateTimeStr);
+  
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+// 使用示例
+const createTime = "2025-03-12T14:50:48+08:00";
+console.log(formatDateTime(createTime)); // 输出: 2025-03-12 14:50:48
+```
+
+## 方法二：使用正则表达式替换（更简洁）
+
+```javascript
+function formatDateTime(dateTimeStr) {
+  const date = new Date(dateTimeStr);
+  
+  // 转换为本地时间的 ISO 字符串，然后替换 T 为空格，去掉毫秒和 Z
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+    .toISOString()
+    .replace('T', ' ')
+    .substring(0, 19);
+}
+
+// 使用示例
+const createTime = "2025-03-12T14:50:48+08:00";
+console.log(formatDateTime(createTime));
+```
+
+## 方法三：封装为可复用的工具函数
+
+```javascript
+// 通用的日期格式化函数
+function formatDate(date, format = 'YYYY-MM-DD HH:mm:ss') {
+  if (!(date instanceof Date)) {
+    date = new Date(date);
+  }
+  
+  const map = {
+    'YYYY': date.getFullYear(),
+    'MM': String(date.getMonth() + 1).padStart(2, '0'),
+    'DD': String(date.getDate()).padStart(2, '0'),
+    'HH': String(date.getHours()).padStart(2, '0'),
+    'mm': String(date.getMinutes()).padStart(2, '0'),
+    'ss': String(date.getSeconds()).padStart(2, '0')
+  };
+  
+  return format.replace(/YYYY|MM|DD|HH|mm|ss/g, matched => map[matched]);
+}
+
+// 使用示例
+const createTime = "2025-03-12T14:50:48+08:00";
+console.log(formatDate(createTime)); // 默认格式
+console.log(formatDate(createTime, 'YYYY/MM/DD')); // 自定义格式
+```
+
+## 在你的代码中使用
+
+根据你截图中的数据结构，可能的使用场景：
+
+```javascript
+// 假设你有这样的数据
+const data = {
+  createTime: "2025-03-12T14:50:48+08:00",
+  // ... 其他字段
+};
+
+// 格式化显示
+data.formattedCreateTime = formatDateTime(data.createTime);
+console.log(data.formattedCreateTime); // 2025-03-12 14:50:48
+```
+
+选择哪种方法取决于你的具体需求：
+- **方法一**最直观易懂
+- **方法二**代码最简洁
+- **方法三**最灵活，可以支持多种格式
