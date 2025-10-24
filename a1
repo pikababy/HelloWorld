@@ -1,0 +1,232 @@
+我来帮你还原这个页面。这是一个模板字段设置页面，包含左右两个区域，左侧显示所有可选字段，右侧显示已选择的模板字段。
+
+```vue
+<template>
+  <div class="p-4">
+    <h2 class="text-lg font-medium mb-4">设定模版字段</h2>
+    
+    <!-- 顶部配置区域 -->
+    <div class="bg-white p-4 mb-4 rounded">
+      <a-row :gutter="16">
+        <a-col :span="8">
+          <a-form-item label="操作类型">
+            <a-select v-model:value="formData.operationType" placeholder="请选择">
+              <a-select-option value="download">下载信息模板</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+        <a-col :span="8">
+          <a-form-item label="任务类型">
+            <a-select v-model:value="formData.taskType" placeholder="请选择">
+              <a-select-option value="security">安全通告单</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+        <a-col :span="8">
+          <a-button type="primary" @click="handleSave">
+            <DownloadOutlined /> 保存
+          </a-button>
+        </a-col>
+      </a-row>
+    </div>
+
+    <!-- 字段选择区域 -->
+    <a-row :gutter="16">
+      <!-- 左侧：所有字段信息 -->
+      <a-col :span="12">
+        <div class="bg-white p-4 rounded">
+          <h3 class="text-base font-medium mb-3">所有字段信息</h3>
+          <div class="field-container">
+            <a-tag
+              v-for="field in availableFields"
+              :key="field.key"
+              class="field-tag"
+              :class="{ 'selected': isFieldSelected(field.key) }"
+              @click="addField(field)"
+            >
+              {{ field.label }}
+            </a-tag>
+          </div>
+        </div>
+      </a-col>
+
+      <!-- 右侧：模版信息 -->
+      <a-col :span="12">
+        <div class="bg-white p-4 rounded">
+          <h3 class="text-base font-medium mb-3">模版信息</h3>
+          <div class="field-container">
+            <a-tag
+              v-for="field in selectedFields"
+              :key="field.key"
+              class="field-tag selected"
+              closable
+              @close="removeField(field)"
+            >
+              {{ field.label }}
+            </a-tag>
+          </div>
+        </div>
+      </a-col>
+    </a-row>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import { DownloadOutlined } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue';
+
+interface Field {
+  key: string;
+  label: string;
+}
+
+// 表单数据
+const formData = ref({
+  operationType: 'download',
+  taskType: 'security',
+});
+
+// 所有可用字段
+const allFields = ref<Field[]>([
+  { key: 'taskNo', label: '任务编号' },
+  { key: 'vulNo', label: '漏洞编号' },
+  { key: 'vulLevel', label: '漏洞级别' },
+  { key: 'taskStatus', label: '任务状态' },
+  { key: 'vulName', label: '漏洞名称' },
+  { key: 'vulType', label: '漏洞类型' },
+  { key: 'vulSource', label: '漏洞来源' },
+  { key: 'pocStatus', label: 'POC状态' },
+  { key: 'checkMethod', label: '检查方法' },
+  { key: 'affectRange', label: '影响范围' },
+  { key: 'handleAdvice', label: '处置建议' },
+  { key: 'feedback', label: '反馈建议' },
+  { key: 'background', label: '背景介绍' },
+  { key: 'isRelated', label: '是否关联漏洞' },
+  { key: 'manufacturer', label: '厂主' },
+  { key: 'ownerId', label: '属主ID' },
+  { key: 'creator', label: '创建人' },
+  { key: 'creatorId', label: '创建人ID' },
+  { key: 'createTime', label: '创建时间' },
+  { key: 'expectTime', label: '期望完成时间' },
+  { key: 'relatedNoticeId', label: '关联安全通知ID' },
+  { key: 'subTaskType', label: '子任务串类型' },
+  { key: 'subTaskStatus', label: '子任务状态' },
+  { key: 'auditorId', label: '审核员Id' },
+  { key: 'auditor', label: '审核员' },
+  { key: 'handleResult', label: '处理结果' },
+  { key: 'attachment', label: '附件地址' },
+]);
+
+// 已选择的字段
+const selectedFields = ref<Field[]>([
+  { key: 'id', label: 'id' },
+  { key: 'vulName', label: '漏洞名称' },
+  { key: 'vulLevel', label: '级别' },
+  { key: 'eventName', label: '事件名称' },
+  { key: 'creator', label: '创建人' },
+  { key: 'createTime', label: '创建时间' },
+  { key: 'status', label: '状态' },
+  { key: 'auditor', label: '审核员' },
+  { key: 'department', label: '部门' },
+]);
+
+// 计算可用字段（排除已选择的）
+const availableFields = computed(() => {
+  const selectedKeys = new Set(selectedFields.value.map(f => f.key));
+  return allFields.value.filter(f => !selectedKeys.has(f.key));
+});
+
+// 判断字段是否已选择
+const isFieldSelected = (key: string) => {
+  return selectedFields.value.some(f => f.key === key);
+};
+
+// 添加字段到模板
+const addField = (field: Field) => {
+  if (!isFieldSelected(field.key)) {
+    selectedFields.value.push({ ...field });
+    message.success(`已添加字段：${field.label}`);
+  }
+};
+
+// 从模板中移除字段
+const removeField = (field: Field) => {
+  const index = selectedFields.value.findIndex(f => f.key === field.key);
+  if (index > -1) {
+    selectedFields.value.splice(index, 1);
+    message.success(`已移除字段：${field.label}`);
+  }
+};
+
+// 保存配置
+const handleSave = () => {
+  const config = {
+    ...formData.value,
+    fields: selectedFields.value.map(f => f.key),
+  };
+  console.log('保存配置：', config);
+  message.success('保存成功！');
+};
+</script>
+
+<style scoped lang="less">
+.field-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 200px;
+  padding: 12px;
+  background-color: #fafafa;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+}
+
+.field-tag {
+  cursor: pointer;
+  padding: 4px 12px;
+  font-size: 14px;
+  user-select: none;
+  transition: all 0.3s;
+  
+  &:hover {
+    opacity: 0.8;
+    transform: translateY(-2px);
+  }
+  
+  &.selected {
+    background-color: #e6f7ff;
+    border-color: #91d5ff;
+  }
+}
+
+:deep(.ant-form-item) {
+  margin-bottom: 0;
+}
+</style>
+```
+
+这个实现包含以下功能：
+
+1. **顶部配置区域**：
+   - 操作类型下拉框（默认"下载信息模板"）
+   - 任务类型下拉框（默认"安全通告单"）
+   - 保存按钮
+
+2. **左侧"所有字段信息"区域**：
+   - 展示所有可用字段
+   - 点击字段会添加到右侧模板信息
+   - 已选择的字段会高亮显示
+
+3. **右侧"模版信息"区域**：
+   - 展示已选择的字段
+   - 每个字段带有关闭按钮
+   - 点击关闭按钮移除该字段
+
+4. **交互特性**：
+   - 字段点击后有视觉反馈
+   - 添加/移除字段时显示提示消息
+   - 字段不会重复添加
+   - 保存时输出配置信息
+
+你可以根据实际需求调整字段列表、样式和保存逻辑。
