@@ -1,0 +1,143 @@
+根据您上传的图片，我可以看到这是一组筛选按钮，需要实现三种状态：**默认**、**悬停**和**选中**。下面是使用 Ant Design Vue 实现这些样式的方案：
+
+## 实现方案我为您创建了一个演示组件。下面是在 **Ant Design Vue** 中的具体实现代码：
+
+## Vue 3 实现代码
+
+```vue
+<template>
+  <div class="filter-container">
+    <div class="filter-group" v-for="group in filterGroups" :key="group.key">
+      <div class="filter-label">{{ group.label }}</div>
+      <div class="filter-buttons">
+        <button
+          v-for="option in group.options"
+          :key="option"
+          :class="['filter-btn', { 'active': isSelected(group.key, option) }]"
+          @click="toggleSelection(group.key, option)"
+        >
+          {{ option }}
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue';
+
+const selectedValues = ref({
+  leakNumber: [],
+  leakLevel: [],
+  taskStatus: []
+});
+
+const filterGroups = [
+  {
+    label: '漏洞编号',
+    key: 'leakNumber',
+    options: ['选项1', '选项2', '选项3']
+  },
+  {
+    label: '漏洞级别',
+    key: 'leakLevel',
+    options: ['高危', '中危', '低危']
+  },
+  {
+    label: '任务状态',
+    key: 'taskStatus',
+    options: ['待处理', '处理中', '已完成']
+  }
+];
+
+const isSelected = (groupKey, value) => {
+  return selectedValues.value[groupKey].includes(value);
+};
+
+const toggleSelection = (groupKey, value) => {
+  const current = selectedValues.value[groupKey];
+  if (current.includes(value)) {
+    selectedValues.value[groupKey] = current.filter(v => v !== value);
+  } else {
+    selectedValues.value[groupKey] = [...current, value];
+  }
+};
+</script>
+
+<style scoped>
+.filter-container {
+  padding: 20px;
+}
+
+.filter-group {
+  margin-bottom: 24px;
+}
+
+.filter-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.filter-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.filter-btn {
+  padding: 6px 16px;
+  font-size: 14px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+  outline: none;
+}
+
+/* 未点击状态（默认） */
+.filter-btn {
+  background: #ffffff;
+  border-color: #d9d9d9;
+  color: #666;
+}
+
+/* 鼠标悬停状态 */
+.filter-btn:hover {
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+/* 点击选中状态 */
+.filter-btn.active {
+  background: #e6f7ff;
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+/* 选中时悬停 */
+.filter-btn.active:hover {
+  background: #bae7ff;
+  border-color: #40a9ff;
+  color: #40a9ff;
+}
+</style>
+```
+
+## 关键样式说明
+
+**三种状态的样式：**
+
+1. **未点击（默认）**：白色背景 + 灰色边框
+2. **鼠标悬停**：蓝色边框 + 蓝色文字
+3. **点击选中**：浅蓝色背景 + 蓝色边框 + 蓝色文字
+
+您可以根据需要调整颜色值，比如：
+- 主题色：`#1890ff` 改为您的品牌色
+- 选中背景：`#e6f7ff` 调整为更浅或更深
+- 边框颜色：`#d9d9d9` 调整灰度
+
+需要其他样式调整吗？
