@@ -1,0 +1,68 @@
+<template>
+  <div class="app">
+    <h1>CRON表达式生成器示例</h1>
+    
+    <CronGenerator
+      @save="handleSave"
+      @cancel="handleCancel"
+    />
+
+    <div v-if="savedCron" class="result-display">
+      <h3>已保存的CRON表达式：</h3>
+      <p class="cron-result">{{ savedCron }}</p>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+import CronGenerator from './CronGenerator.vue'
+
+const savedCron = ref('')
+
+const handleSave = (cronExpression: string) => {
+  savedCron.value = cronExpression
+  console.log('保存的CRON表达式:', cronExpression)
+  alert(`CRON表达式已保存: ${cronExpression}`)
+}
+
+const handleCancel = () => {
+  console.log('取消操作')
+}
+</script>
+
+<style scoped>
+.app {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+h1 {
+  text-align: center;
+  color: #333;
+  margin-bottom: 30px;
+}
+
+.result-display {
+  margin-top: 30px;
+  padding: 20px;
+  background: #f0f9ff;
+  border-radius: 8px;
+  border: 2px solid #409eff;
+}
+
+.result-display h3 {
+  margin: 0 0 10px 0;
+  color: #409eff;
+}
+
+.cron-result {
+  font-family: monospace;
+  font-size: 16px;
+  padding: 10px;
+  background: white;
+  border-radius: 4px;
+  margin: 0;
+}
+</style>
