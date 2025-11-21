@@ -1,0 +1,22 @@
+我来帮你还原这个CRON表达式生成器组件。这是一个完整的Vue3实现：现在创建一个使用示例：再创建一个README说明文档：我已经为你还原了这个CRON表达式生成器组件！
+
+**已创建的文件：**
+
+1. [CronGenerator.vue](computer:///mnt/user-data/outputs/CronGenerator.vue) - 主组件
+2. [App.vue](computer:///mnt/user-data/outputs/App.vue) - 使用示例
+3. [README.md](computer:///mnt/user-data/outputs/README.md) - 使用文档
+
+**主要特性：**
+- ✅ 支持秒、分、时、日、周、月、季、年的完整配置
+- ✅ 4种配置模式：每X、周期、循环、自定义
+- ✅ 实时生成标准CRON表达式
+- ✅ 可视化数字网格选择
+- ✅ 使用Vue3组合式API + TypeScript
+- ✅ 完全响应式设计
+
+**使用方式：**
+```vue
+<CronGenerator @save="handleSave" @cancel="handleCancel" />
+```
+
+组件会实时生成CRON表达式，点击保存时通过`@save`事件返回表达式字符串。
