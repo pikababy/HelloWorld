@@ -1,0 +1,125 @@
+# CRON表达式生成器 Vue3组件
+
+这是一个基于Vue3开发的CRON表达式生成器组件，提供友好的可视化界面来创建定时任务规则。
+
+## 功能特性
+
+- ✅ 支持秒、分、时、日、周、月、季、年的配置
+- ✅ 多种配置模式：每X、周期、循环、自定义
+- ✅ 实时生成CRON表达式
+- ✅ 可视化数字选择
+- ✅ 响应式设计
+- ✅ TypeScript支持
+
+## 安装使用
+
+### 1. 直接使用组件文件
+
+```vue
+<template>
+  <CronGenerator @save="handleSave" @cancel="handleCancel" />
+</template>
+
+<script setup>
+import CronGenerator from './CronGenerator.vue'
+
+const handleSave = (cronExpression) => {
+  console.log('CRON表达式:', cronExpression)
+  // 处理保存逻辑
+}
+
+const handleCancel = () => {
+  console.log('取消操作')
+}
+</script>
+```
+
+### 2. 组件事件
+
+| 事件名 | 说明 | 参数 |
+|--------|------|------|
+| save | 点击保存按钮时触发 | cronExpression: string |
+| cancel | 点击取消按钮时触发 | - |
+
+## CRON表达式格式
+
+生成的CRON表达式格式为：`秒 分 时 日 月 周 年`
+
+例如：
+- `* * * * * ? *` - 每秒执行
+- `0 0 10 * * ? *` - 每天上午10点执行
+- `0 0/5 * * * ? *` - 每5分钟执行
+- `0 0 0 1 * ? *` - 每月1号执行
+
+## 配置模式说明
+
+### 1. 每X
+- 执行频率：每秒/每分/每时等
+- CRON表达式：`*`
+
+### 2. 周期
+- 从X到Y的时间范围内执行
+- CRON表达式：`X-Y`
+- 示例：`0-30` 表示0到30秒
+
+### 3. 循环
+- 从X开始，每隔Y执行一次
+- CRON表达式：`X/Y`
+- 示例：`0/5` 表示从0秒开始，每5秒执行一次
+
+### 4. 自定义
+- 选择特定的数值
+- CRON表达式：`X,Y,Z`
+- 示例：`0,15,30,45` 表示在0、15、30、45秒执行
+
+## 特殊功能
+
+### 日期配置
+- **不指定（?）**：用于日和周互斥的情况
+- **月最后一日（L）**：每月最后一天
+- **工作日（W）**：最近的工作日
+
+### 周配置
+- 支持周一到周日的选择
+- 1-7分别代表周一到周日
+
+## 开发环境
+
+- Vue 3.x
+- TypeScript
+- 组合式API (Composition API)
+
+## 浏览器支持
+
+- Chrome (推荐)
+- Firefox
+- Safari
+- Edge
+
+## 自定义样式
+
+组件使用了scoped样式，你可以通过以下方式自定义：
+
+```vue
+<style>
+/* 覆盖组件样式 */
+.cron-generator {
+  --primary-color: #409eff;
+  --success-color: #67c23a;
+}
+</style>
+```
+
+## 注意事项
+
+1. CRON表达式的"日"和"周"字段通常是互斥的，一个设置为具体值时，另一个应设置为`?`
+2. 不同的定时任务系统可能对CRON表达式的支持有所不同，使用前请确认目标系统的支持情况
+3. 年份字段在某些系统中是可选的
+
+## License
+
+MIT
+
+## 贡献
+
+欢迎提交Issue和Pull Request！
