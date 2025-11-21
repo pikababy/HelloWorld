@@ -1,0 +1,649 @@
+<template>
+  <div class="cron-generator">
+    <h3>生成器</h3>
+    
+    <!-- 标签页 -->
+    <div class="tabs">
+      <button
+        v-for="tab in tabs"
+        :key="tab.value"
+        :class="['tab-button', { active: activeTab === tab.value }]"
+        @click="activeTab = tab.value"
+      >
+        {{ tab.label }}
+      </button>
+    </div>
+
+    <!-- 内容区域 -->
+    <div class="tab-content">
+      <!-- 每X选项 -->
+      <div class="option-row">
+        <label>
+          <input
+            type="radio"
+            :name="`type-${activeTab}`"
+            value="every"
+            v-model="config[activeTab].type"
+          />
+          <span>每{{ getUnit() }}</span>
+        </label>
+      </div>
+
+      <!-- 周期选项 -->
+      <div class="option-row" v-if="activeTab !== 'day'">
+        <label>
+          <input
+            type="radio"
+            :name="`type-${activeTab}`"
+            value="range"
+            v-model="config[activeTab].type"
+          />
+          <span>
+            {{ activeTab === 'week' ? '周期' : '周期' }} 从
+            <input
+              type="number"
+              v-model.number="config[activeTab].rangeStart"
+              :min="getMin()"
+              :max="getMax()"
+              class="number-input"
+            />
+            {{ getUnit() }} 到
+            <input
+              type="number"
+              v-model.number="config[activeTab].rangeEnd"
+              :min="getMin()"
+              :max="getMax()"
+              class="number-input"
+            />
+            {{ getUnit() }}
+          </span>
+        </label>
+      </div>
+
+      <!-- 日期特殊选项 -->
+      <div v-if="activeTab === 'day'">
+        <div class="option-row">
+          <label>
+            <input
+              type="radio"
+              :name="`type-${activeTab}`"
+              value="noSpecific"
+              v-model="config[activeTab].type"
+            />
+            <span>不指定(推荐时，日 两设置均为不指定)</span>
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input
+              type="radio"
+              :name="`type-${activeTab}`"
+              value="lastDay"
+              v-model="config[activeTab].type"
+            />
+            <span>月最后一日</span>
+          </label>
+        </div>
+        <div class="option-row">
+          <label>
+            <input
+              type="radio"
+              :name="`type-${activeTab}`"
+              value="range"
+              v-model="config[activeTab].type"
+            />
+            <span>
+              周期 从
+              <input
+                type="number"
+                v-model.number="config[activeTab].rangeStart"
+                :min="1"
+                :max="31"
+                class="number-input"
+              />
+              日 到
+              <input
+                type="number"
+                v-model.number="config[activeTab].rangeEnd"
+                :min="1"
+                :max="31"
+                class="number-input"
+              />
+              日
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <!-- 循环选项 -->
+      <div class="option-row" v-if="activeTab !== 'day'">
+        <label>
+          <input
+            type="radio"
+            :name="`type-${activeTab}`"
+            value="interval"
+            v-model="config[activeTab].type"
+          />
+          <span>
+            循环 从
+            <input
+              type="number"
+              v-model.number="config[activeTab].intervalStart"
+              :min="getMin()"
+              :max="getMax()"
+              class="number-input"
+            />
+            {{ getUnit() }}{{ activeTab === 'hour' || activeTab === 'day' ? '开始' : '开始' }} 每
+            <input
+              type="number"
+              v-model.number="config[activeTab].intervalStep"
+              :min="1"
+              :max="getMax()"
+              class="number-input"
+            />
+            {{ getUnit() }}执行一次
+          </span>
+        </label>
+      </div>
+
+      <!-- 工作日选项（仅日期） -->
+      <div class="option-row" v-if="activeTab === 'day'">
+        <label>
+          <input
+            type="radio"
+            :name="`type-${activeTab}`"
+            value="workday"
+            v-model="config[activeTab].type"
+          />
+          <span>
+            每月 离
+            <input
+              type="number"
+              v-model.number="config[activeTab].workdayNum"
+              :min="1"
+              :max="31"
+              class="number-input"
+            />
+            日 最近工作日
+          </span>
+        </label>
+      </div>
+
+      <!-- 自定义选项 -->
+      <div class="option-row">
+        <label>
+          <input
+            type="radio"
+            :name="`type-${activeTab}`"
+            value="custom"
+            v-model="config[activeTab].type"
+          />
+          <span>自定义</span>
+        </label>
+      </div>
+
+      <!-- 自定义数字选择 -->
+      <div v-if="config[activeTab].type === 'custom'" class="number-grid">
+        <label
+          v-for="num in getNumberRange()"
+          :key="num"
+          class="number-checkbox"
+        >
+          <input
+            type="checkbox"
+            :value="num"
+            v-model="config[activeTab].customValues"
+          />
+          <span>{{ formatNumberLabel(num) }}</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- 表达式结果 -->
+    <div class="expression-result">
+      <h4>表达式结果</h4>
+      <table class="result-table">
+        <tr>
+          <td>秒</td>
+          <td>分</td>
+          <td>时</td>
+          <td>天</td>
+          <td>月</td>
+          <td>周</td>
+          <td>年</td>
+        </tr>
+        <tr>
+          <td>{{ cronParts.second }}</td>
+          <td>{{ cronParts.minute }}</td>
+          <td>{{ cronParts.hour }}</td>
+          <td>{{ cronParts.day }}</td>
+          <td>{{ cronParts.month }}</td>
+          <td>{{ cronParts.week }}</td>
+          <td>{{ cronParts.year }}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- CRON表达式 -->
+    <div class="cron-expression">
+      <label>CRON表达式：</label>
+      <input
+        type="text"
+        :value="cronExpression"
+        readonly
+        class="cron-input"
+      />
+    </div>
+
+    <!-- 按钮 -->
+    <div class="action-buttons">
+      <button class="btn-save" @click="saveCron">✓ 保存CRON码</button>
+      <button class="btn-cancel" @click="cancel">↶ 取消</button>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, reactive, watch } from 'vue'
+
+interface CronConfig {
+  type: 'every' | 'range' | 'interval' | 'custom' | 'noSpecific' | 'lastDay' | 'workday'
+  rangeStart: number
+  rangeEnd: number
+  intervalStart: number
+  intervalStep: number
+  customValues: number[]
+  workdayNum: number
+}
+
+const activeTab = ref('second')
+
+const tabs = [
+  { label: '秒', value: 'second' },
+  { label: '分', value: 'minute' },
+  { label: '时', value: 'hour' },
+  { label: '日', value: 'day' },
+  { label: '周', value: 'week' },
+  { label: '月', value: 'month' },
+  { label: '季', value: 'quarter' },
+  { label: '年', value: 'year' }
+]
+
+const config = reactive<Record<string, CronConfig>>({
+  second: {
+    type: 'every',
+    rangeStart: 0,
+    rangeEnd: 0,
+    intervalStart: 0,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  minute: {
+    type: 'every',
+    rangeStart: 0,
+    rangeEnd: 0,
+    intervalStart: 0,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  hour: {
+    type: 'every',
+    rangeStart: 0,
+    rangeEnd: 0,
+    intervalStart: 0,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  day: {
+    type: 'every',
+    rangeStart: 1,
+    rangeEnd: 1,
+    intervalStart: 1,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  week: {
+    type: 'every',
+    rangeStart: 1,
+    rangeEnd: 1,
+    intervalStart: 1,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  month: {
+    type: 'every',
+    rangeStart: 1,
+    rangeEnd: 1,
+    intervalStart: 1,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  quarter: {
+    type: 'every',
+    rangeStart: 1,
+    rangeEnd: 1,
+    intervalStart: 1,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  },
+  year: {
+    type: 'every',
+    rangeStart: 2024,
+    rangeEnd: 2024,
+    intervalStart: 2024,
+    intervalStep: 1,
+    customValues: [],
+    workdayNum: 1
+  }
+})
+
+const getUnit = () => {
+  const units: Record<string, string> = {
+    second: '秒',
+    minute: '分',
+    hour: '时',
+    day: '日',
+    week: '周',
+    month: '月',
+    quarter: '季',
+    year: '年'
+  }
+  return units[activeTab.value] || ''
+}
+
+const getMin = () => {
+  const mins: Record<string, number> = {
+    second: 0,
+    minute: 0,
+    hour: 0,
+    day: 1,
+    week: 1,
+    month: 1,
+    quarter: 1,
+    year: 2024
+  }
+  return mins[activeTab.value] || 0
+}
+
+const getMax = () => {
+  const maxs: Record<string, number> = {
+    second: 59,
+    minute: 59,
+    hour: 23,
+    day: 31,
+    week: 7,
+    month: 12,
+    quarter: 4,
+    year: 2099
+  }
+  return maxs[activeTab.value] || 59
+}
+
+const getNumberRange = () => {
+  const ranges: Record<string, number[]> = {
+    second: Array.from({ length: 60 }, (_, i) => i),
+    minute: Array.from({ length: 60 }, (_, i) => i),
+    hour: Array.from({ length: 24 }, (_, i) => i),
+    day: Array.from({ length: 31 }, (_, i) => i + 1),
+    week: Array.from({ length: 7 }, (_, i) => i + 1),
+    month: Array.from({ length: 12 }, (_, i) => i + 1),
+    quarter: Array.from({ length: 4 }, (_, i) => i + 1),
+    year: Array.from({ length: 10 }, (_, i) => 2024 + i)
+  }
+  return ranges[activeTab.value] || []
+}
+
+const formatNumberLabel = (num: number) => {
+  if (activeTab.value === 'week') {
+    const weekDays = ['', '周一', '周二', '周三', '周四', '周五', '周六', '周日']
+    return weekDays[num] || num
+  }
+  return num
+}
+
+const generateCronPart = (tabName: string): string => {
+  const cfg = config[tabName]
+  
+  switch (cfg.type) {
+    case 'every':
+      return '*'
+    case 'range':
+      return `${cfg.rangeStart}-${cfg.rangeEnd}`
+    case 'interval':
+      return `${cfg.intervalStart}/${cfg.intervalStep}`
+    case 'custom':
+      return cfg.customValues.length > 0 ? cfg.customValues.sort((a, b) => a - b).join(',') : '*'
+    case 'noSpecific':
+      return '?'
+    case 'lastDay':
+      return 'L'
+    case 'workday':
+      return `${cfg.workdayNum}W`
+    default:
+      return '*'
+  }
+}
+
+const cronParts = computed(() => {
+  return {
+    second: generateCronPart('second'),
+    minute: generateCronPart('minute'),
+    hour: generateCronPart('hour'),
+    day: generateCronPart('day'),
+    month: generateCronPart('month'),
+    week: generateCronPart('week'),
+    year: generateCronPart('year')
+  }
+})
+
+const cronExpression = computed(() => {
+  return `${cronParts.value.second} ${cronParts.value.minute} ${cronParts.value.hour} ${cronParts.value.day} ${cronParts.value.month} ${cronParts.value.week} ${cronParts.value.year}`
+})
+
+const emit = defineEmits(['save', 'cancel'])
+
+const saveCron = () => {
+  emit('save', cronExpression.value)
+}
+
+const cancel = () => {
+  emit('cancel')
+}
+</script>
+
+<style scoped>
+.cron-generator {
+  background: #f5f5f5;
+  padding: 20px;
+  border-radius: 8px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+h3 {
+  margin: 0 0 20px 0;
+  font-size: 18px;
+  color: #333;
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 20px;
+  background: #ddd;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.tab-button {
+  flex: 1;
+  padding: 10px 20px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.tab-button:hover {
+  background: #e8e8e8;
+}
+
+.tab-button.active {
+  background: #409eff;
+  color: white;
+}
+
+.tab-content {
+  background: white;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.option-row {
+  margin-bottom: 15px;
+}
+
+.option-row label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.option-row input[type="radio"] {
+  margin-right: 8px;
+  cursor: pointer;
+}
+
+.number-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  text-align: center;
+  margin: 0 4px;
+}
+
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 8px;
+  margin-top: 15px;
+  padding: 15px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.number-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  transition: background 0.2s;
+}
+
+.number-checkbox:hover {
+  background: #e8f4ff;
+}
+
+.number-checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.expression-result {
+  background: white;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}
+
+.expression-result h4 {
+  margin: 0 0 15px 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.result-table td {
+  padding: 10px;
+  text-align: center;
+  border: 1px solid #e0e0e0;
+}
+
+.result-table tr:first-child td {
+  background: #f5f5f5;
+  font-weight: bold;
+}
+
+.cron-expression {
+  background: white;
+  padding: 20px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cron-expression label {
+  font-weight: bold;
+  white-space: nowrap;
+}
+
+.cron-input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #fafafa;
+  font-family: monospace;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.btn-save,
+.btn-cancel {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.btn-save {
+  background: #67c23a;
+  color: white;
+}
+
+.btn-save:hover {
+  background: #5daf34;
+}
+
+.btn-cancel {
+  background: #909399;
+  color: white;
+}
+
+.btn-cancel:hover {
+  background: #82848a;
+}
+</style>
