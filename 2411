@@ -1,0 +1,147 @@
+Looking at your screenshots, I can see you're making a POST request to download a file, sending a `pathUrl` in the request body and receiving the file as a binary response with `Content-Disposition: attachment`.
+
+Here are several ways to download files in Vue 3:
+
+## Method 1: Using Axios with Blob (Recommended)
+
+```javascript
+import axios from 'axios'
+
+const downloadFile = async (pathUrl) => {
+  try {
+    const response = await axios({
+      method: 'POST',
+      url: '/api/flow/download-attach',
+      data: { pathUrl },
+      responseType: 'blob', // Important!
+    })
+
+    // Extract filename from Content-Disposition header
+    const contentDisposition = response.headers['content-disposition']
+    let filename = 'download.xlsx'
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename=(.+)/)
+      if (filenameMatch) {
+        filename = decodeURIComponent(filenameMatch[1])
+      }
+    }
+
+    // Create download link
+    const blob = new Blob([response.data])
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = filename
+    link.click()
+    URL.revokeObjectURL(link.href)
+  } catch (error) {
+    console.error('Download failed:', error)
+  }
+}
+```
+
+## Method 2: Using Fetch API
+
+```javascript
+const downloadFile = async (pathUrl) => {
+  try {
+    const response = await fetch('/api/flow/download-attach', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token, // if needed
+      },
+      body: JSON.stringify({ pathUrl }),
+    })
+
+    const blob = await response.blob()
+    const filename = getFilenameFromResponse(response) || 'file.xlsx'
+    
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    window.URL.revokeObjectURL(url)
+  } catch (error) {
+    console.error('Download failed:', error)
+  }
+}
+```
+
+## Method 3: Composable for Reuse
+
+```javascript
+// useDownload.js
+import { ref } from 'vue'
+import axios from 'axios'
+
+export function useDownload() {
+  const loading = ref(false)
+
+  const download = async (url, data, defaultFilename = 'download') => {
+    loading.value = true
+    try {
+      const response = await axios({
+        method: 'POST',
+        url,
+        data,
+        responseType: 'blob',
+      })
+
+      // Handle filename with encoding issues (like Chinese characters)
+      let filename = defaultFilename
+      const disposition = response.headers['content-disposition']
+      if (disposition) {
+        // Try to get filename* (RFC 5987) first, then filename
+        const matches = disposition.match(/filename\*=UTF-8''(.+)|filename=(.+)/i)
+        if (matches) {
+          filename = decodeURIComponent(matches[1] || matches[2])
+        }
+      }
+
+      const blob = new Blob([response.data])
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(link.href)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  return { download, loading }
+}
+```
+
+**Usage in component:**
+
+```vue
+<script setup>
+import { useDownload } from '@/composables/useDownload'
+
+const { download, loading } = useDownload()
+
+const handleDownload = () => {
+  download('/api/flow/download-attach', {
+    pathUrl: 'D:\\vsm_attachment\\1763968831930\\漏洞管理批量导入模版 (1).xlsx'
+  })
+}
+</script>
+
+<template>
+  <button @click="handleDownload" :disabled="loading">
+    {{ loading ? '下载中...' : '下载文件' }}
+  </button>
+</template>
+```
+
+## Key Points
+
+1. **`responseType: 'blob'`** is critical — without it, the binary data gets corrupted
+2. **Filename encoding**: Your server returns Chinese filenames, so you may need `decodeURIComponent()` 
+3. **CORS**: Ensure `Access-Control-Expose-Headers: Content-Disposition` is set on the server if you need to read the filename
+
+Would you like me to help you integrate this into your specific project setup?
