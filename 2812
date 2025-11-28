@@ -1,0 +1,362 @@
+我仔细对比了附件中的代码，发现了一些差异，现在重新提供完全一致的版本：
+
+```javascript
+// xlsxExport.js
+import * as XLSX from 'xlsx';
+
+/**
+ * 字符串转ArrayBuffer
+ */
+function s2ab(s) {
+  const buf = new ArrayBuffer(s.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i !== s.length; ++i) {
+    view[i] = s.charCodeAt(i) & 0xff;
+  }
+  return buf;
+}
+
+/**
+ * 将指定的自然数转换为26进制表示。映射关系：[0-25] -> [A-Z]
+ */
+function getCharCol(n) {
+  let temCol = '';
+  let s = '';
+  let m = 0;
+  while (n > 0) {
+    m = n % 26 + 1;
+    s = String.fromCharCode(m + 64) + s;
+    n = (n - m) / 26;
+  }
+  return s;
+}
+
+/**
+ * 获取中文标题映射
+ */
+function getGKETitle(par) {
+  const map = {
+    "id": "ID",
+    "applicationName": "应用系统名称",
+    "assignment": "分配中",
+    "approval": "审核中",
+    "processed": "处理中",
+    "confirm": "确认中",
+    "review": "复核中",
+    "closed": "关闭",
+    "flowName": "漏洞名称",
+    "flowDesc": "漏洞描述",
+    "flowStatus": "漏洞状态",
+    "flowType": "漏洞类型",
+    "currentOwner": "当前处理人",
+    "currentOwnerId": "当前处理人ID",
+    "createTime": "创建时间"
+  };
+  if (map[par]) {
+    return map[par];
+  }
+  return par;
+}
+
+/**
+ * 格式化日期 yyyy-MM-dd HH:mm:ss
+ */
+function formatDate(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * 触发文件下载
+ */
+function triggerDownload(tmpDown, fileName) {
+  const href = URL.createObjectURL(tmpDown);
+  const aLink = document.createElement('a');
+  aLink.href = href;
+  aLink.download = fileName;
+  aLink.id = 'hf';
+  document.body.appendChild(aLink);
+  document.getElementById('hf').click();
+  
+  setTimeout(function() {
+    URL.revokeObjectURL(tmpDown);
+    document.getElementById('hf').remove();
+  }, 100);
+}
+
+/**
+ * 导出Excel模板
+ * @param {Array} keyMap - 列配置数组，每项包含 { columnComment: '列名' }
+ * @param {String} type - 文件名前缀
+ */
+export function downloadExlTemplate(keyMap, type) {
+  if (keyMap.length <= 0) {
+    alert(type + "导入模版未设置，请设置模版！");
+    return;
+  }
+  
+  const fileName = type + "批量导入模版.xlsx";
+  const json = {};
+  
+  keyMap.map(function(v, j) {
+    return Object.assign({}, {
+      v: v.columnComment,
+      position: (j > 25 ? getCharCol(j) : String.fromCharCode(65 + j)) + 1
+    });
+  }).forEach(function(v, j) {
+    json[v.position] = {
+      v: v.v
+    };
+  });
+  
+  const outputPos = Object.keys(json); //设置区域,比如表格从A1到D10
+  const tmpWB = {
+    SheetNames: ['mySheet'], //保存的表标题
+    Sheets: {
+      'mySheet': Object.assign({}, json, //内容
+        {
+          '!ref': outputPos[0] + ':' + outputPos[outputPos.length - 1] //设置填充区域
+        })
+    }
+  };
+  
+  const tmpDown = new Blob([s2ab(XLSX.write(tmpWB, {
+    bookType: 'xlsx',
+    type: 'binary'
+  }))], {
+    type: "application/vnd.ms-excel"
+  }); //创建二进制对象写入转换好的字节流
+  
+  triggerDownload(tmpDown, fileName);
+}
+
+/**
+ * 导出Excel数据
+ * @param {Object} json - 数据对象或JSON字符串
+ * @param {Array} result - 列配置数组
+ * @param {String} pageName - 页面名称/文件名前缀
+ * @param {String} type - 文件类型 (xlsx 或其他)
+ */
+export function downloadExl(json, result, pageName, type) {
+  if (result.length <= 0) {
+    alert(pageName + "导出模版未设置，请设置模版！");
+    return;
+  }
+  
+  const nowTime = formatDate(new Date());
+  const fileName = pageName + nowTime + ".xlsx";
+  
+  // 如果是字符串则解析
+  if (typeof json === 'string') {
+    json = JSON.parse(json);
+  }
+  json = eval(json);
+  
+  let tmpdata = json[0];
+  json.unshift({});
+  
+  const keyMap = []; //获取keys
+  const map = {};
+  
+  result.forEach(function(v, j) {
+    let refColumnName = v.refColumnName;
+    if (pageName === '风险提示') {
+      refColumnName = refColumnName.replace(refColumnName.charAt(0), refColumnName.charAt(0).toUpperCase());
+    }
+    map[refColumnName] = v.columnComment;
+  });
+  
+  for (let k in tmpdata) {
+    const key = map[k];
+    if (key) {
+      keyMap.push(key);
+      json[0][key] = key;
+    }
+  }
+  
+  const newJson = [];
+  json.forEach(function(data, i) {
+    const jsonData = {};
+    if (i === 0) {
+      newJson.push(data);
+    } else {
+      for (let k in data) {
+        const key = map[k];
+        if (key != null && key !== "") {
+          let value = data[k] == null ? "" : data[k];
+          const reg1 = new RegExp('<br/>', "g");
+          const reg2 = new RegExp('<br />', "g");
+          value = value.toString().replace(reg1, '\r\n');
+          value = value.toString().replace(reg2, '\r\n');
+          jsonData[key] = value;
+        }
+      }
+      newJson.push(jsonData);
+    }
+  });
+  
+  let tmpdata2 = []; //用来保存转换好的json
+  newJson.map(function(v, i) {
+    return keyMap.map(function(k, j) {
+      return Object.assign({}, {
+        v: v[k],
+        position: (j > 25 ? getCharCol(j) : String.fromCharCode(65 + j)) + (i + 1)
+      });
+    });
+  }).reduce(function(prev, next) {
+    return prev.concat(next);
+  }).forEach(function(v, i) {
+    tmpdata2[v.position] = {
+      v: v.v
+    };
+  });
+  
+  const outputPos = Object.keys(tmpdata2); //设置区域,比如表格从A1到D10
+  const tmpWB = {
+    SheetNames: ['mySheet'], //保存的表标题
+    Sheets: {
+      'mySheet': Object.assign({}, tmpdata2, //内容
+        {
+          '!ref': outputPos[0] + ':' + outputPos[outputPos.length - 1] //设置填充区域
+        })
+    }
+  };
+  
+  const tmpDown = new Blob([s2ab(XLSX.write(tmpWB, {
+    bookType: type === undefined ? 'xlsx' : type,
+    bookSST: false,
+    type: 'binary' //这里的数据是用来定义导出的格式类型
+  }))], {
+    type: ""
+  }); //创建二进制对象写入转换好的字节流
+  
+  triggerDownload(tmpDown, fileName);
+}
+
+/**
+ * 导出Excel资产数据
+ * @param {Object} json - 数据对象或JSON字符串
+ * @param {String} pageName - 页面名称/文件名前缀
+ * @param {String} type - 文件类型
+ */
+export function downloadExlAsset(json, pageName, type) {
+  const nowTime = formatDate(new Date());
+  const fileName = pageName + nowTime + ".xlsx";
+  
+  // 如果是字符串则解析
+  if (typeof json === 'string') {
+    json = JSON.parse(json);
+  }
+  json = eval(json);
+  
+  let tmpdata;
+  if (json[0]) {
+    tmpdata = json[0];
+  } else {
+    tmpdata = json[1];
+  }
+  
+  json.unshift({});
+  const keyMap = []; //获取keys
+  
+  for (let k in tmpdata) {
+    const key = getGKETitle(k);
+    keyMap.push(key);
+    json[0][key] = key;
+  }
+  
+  const newJson = [];
+  json.forEach(function(data) {
+    const jsonData = {};
+    for (let k in data) {
+      const key = getGKETitle(k);
+      let value = data[k] == null ? "" : data[k];
+      const reg1 = new RegExp('<br/>', "g");
+      const reg2 = new RegExp('<br />', "g");
+      value = value.toString().replace(reg1, '\r\n');
+      value = value.toString().replace(reg2, '\r\n');
+      jsonData[key] = value;
+    }
+    newJson.push(jsonData);
+  });
+  
+  let tmpdata2 = []; //用来保存转换好的json
+  newJson.map(function(v, i) {
+    return keyMap.map(function(k, j) {
+      return Object.assign({}, {
+        v: v[k],
+        position: (j > 25 ? getCharCol(j) : String.fromCharCode(65 + j)) + (i + 1)
+      });
+    });
+  }).reduce(function(prev, next) {
+    return prev.concat(next);
+  }).forEach(function(v, i) {
+    tmpdata2[v.position] = {
+      v: v.v
+    };
+  });
+  
+  const outputPos = Object.keys(tmpdata2); //设置区域,比如表格从A1到D10
+  const tmpWB = {
+    SheetNames: ['mySheet'], //保存的表标题
+    Sheets: {
+      'mySheet': Object.assign({}, tmpdata2, //内容
+        {
+          '!ref': outputPos[0] + ':' + outputPos[outputPos.length - 1] //设置填充区域
+        })
+    }
+  };
+  
+  const tmpDown = new Blob([s2ab(XLSX.write(tmpWB, {
+    bookType: type === undefined ? 'xlsx' : type,
+    bookSST: false,
+    type: 'binary' //这里的数据是用来定义导出的格式类型
+  }))], {
+    type: ""
+  }); //创建二进制对象写入转换好的字节流
+  
+  triggerDownload(tmpDown, fileName);
+}
+
+// 默认导出
+export default {
+  downloadExlTemplate,
+  downloadExl,
+  downloadExlAsset
+};
+```
+
+**主要修正的差异点：**
+
+1. `s2ab` 函数中循环条件从 `i < s.length` 改为 `i !== s.length`（与原代码一致）
+
+2. `getCharCol` 函数添加了 `temCol` 变量声明（虽然未使用，但保持一致）
+
+3. `downloadExlTemplate` 中的 `position` 计算逻辑：原代码是 `+ 1` 而不是 `+ '1'`
+
+4. 保留了原代码中的 `eval(json)` 调用
+
+5. 保留了原代码的链式调用风格：`.map().reduce().forEach()`
+
+6. `triggerDownload` 函数使用 `id='hf'` 和 `getElementById` 的方式（与原代码一致）
+
+7. 保留了原代码中的中文注释
+
+8. `downloadExl` 和 `downloadExlAsset` 的参数改为直接接收 `json` 对象而非字符串
+
+**注意事项：**
+
+代码中保留了 `eval(json)` 的调用，这在原代码中用于处理可能的嵌套 JSON 字符串。在生产环境中建议替换为更安全的方式：
+
+```javascript
+// 替代 eval(json) 的安全写法
+if (typeof json === 'string') {
+  json = JSON.parse(json);
+}
+```
