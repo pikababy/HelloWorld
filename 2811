@@ -1,0 +1,359 @@
+我来帮你把这个 AngularJS 的 Excel 导出服务转换成 Vue 3 可用的代码。
+
+```javascript
+// xlsxExport.js
+import * as XLSX from 'xlsx';
+
+/**
+ * 字符串转ArrayBuffer
+ */
+function s2ab(s) {
+  const buf = new ArrayBuffer(s.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < s.length; ++i) {
+    view[i] = s.charCodeAt(i) & 0xff;
+  }
+  return buf;
+}
+
+/**
+ * 将数字转换为Excel列名 (0-25 -> A-Z, 26-> AA...)
+ */
+function getCharCol(n) {
+  let s = '';
+  let m = 0;
+  while (n > 0) {
+    m = (n % 26) + 1;
+    s = String.fromCharCode(m + 64) + s;
+    n = (n - m) / 26;
+  }
+  return s;
+}
+
+/**
+ * 获取中文标题映射
+ */
+function getGKETitle(par) {
+  const map = {
+    id: 'ID',
+    applicationName: '应用系统名称',
+    assignment: '分配中',
+    approval: '审核中',
+    processed: '处理中',
+    confirm: '确认中',
+    review: '复核中',
+    closed: '关闭',
+    flowName: '漏洞名称',
+    flowDesc: '漏洞描述',
+    flowStatus: '漏洞状态',
+    flowType: '漏洞类型',
+    currentOwner: '当前处理人',
+    currentOwnerId: '当前处理人ID',
+    createTime: '创建时间'
+  };
+  return map[par] || par;
+}
+
+/**
+ * 触发文件下载
+ */
+function triggerDownload(blob, fileName) {
+  const href = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = href;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  
+  setTimeout(() => {
+    URL.revokeObjectURL(href);
+    document.body.removeChild(link);
+  }, 100);
+}
+
+/**
+ * 格式化日期
+ */
+function formatDate(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  const seconds = String(d.getSeconds()).padStart(2, '0');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+/**
+ * 导出Excel模板
+ * @param {Array} keyMap - 列配置数组，每项包含 { columnComment: '列名' }
+ * @param {String} type - 文件名前缀
+ */
+export function downloadExlTemplate(keyMap, type) {
+  if (!keyMap || keyMap.length <= 0) {
+    alert(type + '导入模版未设置，请设置模版！');
+    return;
+  }
+
+  const fileName = type + '批量导入模版.xlsx';
+  const json = {};
+
+  keyMap.forEach((v, j) => {
+    const position = j > 25 ? getCharCol(j) : String.fromCharCode(65 + j) + '1';
+    json[position] = { v: v.columnComment };
+  });
+
+  const outputPos = Object.keys(json);
+  const tmpWB = {
+    SheetNames: ['mySheet'],
+    Sheets: {
+      mySheet: Object.assign({}, json, {
+        '!ref': outputPos[0] + ':' + outputPos[outputPos.length - 1]
+      })
+    }
+  };
+
+  const tmpDown = new Blob(
+    [s2ab(XLSX.write(tmpWB, { bookType: 'xlsx', type: 'binary' }))],
+    { type: 'application/vnd.ms-excel' }
+  );
+
+  triggerDownload(tmpDown, fileName);
+}
+
+/**
+ * 导出Excel数据
+ * @param {String} jsonStr - JSON字符串格式的数据
+ * @param {Array} result - 列配置数组
+ * @param {String} pageName - 页面名称/文件名前缀
+ * @param {String} type - 文件类型 (xlsx 或其他)
+ */
+export function downloadExl(jsonStr, result, pageName, type) {
+  if (!result || result.length <= 0) {
+    alert(pageName + '导出模版未设置，请设置模版！');
+    return;
+  }
+
+  const nowTime = formatDate(new Date());
+  const fileName = pageName + nowTime + '.xlsx';
+  
+  let json = JSON.parse(jsonStr);
+  json = typeof json === 'string' ? JSON.parse(json) : json;
+  
+  let tmpdata = json[0] || json;
+  json.unshift({});
+
+  const keyMap = [];
+  const map = {};
+
+  // 构建列映射
+  result.forEach((v) => {
+    let refColumnName = v.refColumnName;
+    if (pageName === '风险提示') {
+      refColumnName = refColumnName.replace(
+        refColumnName.charAt(0),
+        refColumnName.charAt(0).toUpperCase()
+      );
+    }
+    map[refColumnName] = v.columnComment;
+  });
+
+  // 获取keys
+  for (const k in tmpdata) {
+    const key = map[k];
+    if (key) {
+      keyMap.push(key);
+      json[0][key] = key;
+    }
+  }
+
+  // 处理数据，替换<br/>标签
+  const newJson = [];
+  json.forEach((data, i) => {
+    const jsonData = {};
+    if (i === 0) {
+      newJson.push(data);
+    } else {
+      for (const k in data) {
+        const key = map[k];
+        if (key != null && key !== '') {
+          let value = data[k] == null ? '' : data[k];
+          const reg1 = new RegExp('<br/>', 'g');
+          const reg2 = new RegExp('<br />', 'g');
+          value = value.toString().replace(reg1, '\r\n');
+          value = value.toString().replace(reg2, '\r\n');
+          jsonData[key] = value;
+        }
+      }
+      newJson.push(jsonData);
+    }
+  });
+
+  // 转换为Excel格式
+  const excelData = [];
+  newJson.forEach((v, i) => {
+    keyMap.forEach((k, j) => {
+      const position = (j > 25 ? getCharCol(j) : String.fromCharCode(65 + j)) + (i + 1);
+      excelData.push({
+        v: v[k],
+        position: position
+      });
+    });
+  });
+
+  // 构建worksheet
+  const tmpdata2 = {};
+  excelData.forEach((v) => {
+    tmpdata2[v.position] = { v: v.v };
+  });
+
+  const outputPos = Object.keys(tmpdata2);
+  const tmpWB = {
+    SheetNames: ['mySheet'],
+    Sheets: {
+      mySheet: Object.assign({}, tmpdata2, {
+        '!ref': outputPos[0] + ':' + outputPos[outputPos.length - 1]
+      })
+    }
+  };
+
+  const tmpDown = new Blob(
+    [s2ab(XLSX.write(tmpWB, {
+      bookType: type === undefined ? 'xlsx' : type,
+      bookSST: false,
+      type: 'binary'
+    }))],
+    { type: '' }
+  );
+
+  triggerDownload(tmpDown, fileName);
+}
+
+/**
+ * 导出Excel资产数据
+ * @param {String} jsonStr - JSON字符串格式的数据
+ * @param {String} pageName - 页面名称/文件名前缀
+ * @param {String} type - 文件类型
+ */
+export function downloadExlAsset(jsonStr, pageName, type) {
+  const nowTime = formatDate(new Date());
+  const fileName = pageName + nowTime + '.xlsx';
+
+  let json = JSON.parse(jsonStr);
+  json = typeof json === 'string' ? JSON.parse(json) : json;
+
+  let tmpdata = json[0] || json[1];
+  json.unshift({});
+
+  const keyMap = [];
+
+  // 获取中文标题
+  for (const k in tmpdata) {
+    const key = getGKETitle(k);
+    keyMap.push(key);
+    json[0][key] = key;
+  }
+
+  // 处理数据
+  const newJson = [];
+  json.forEach((data) => {
+    const jsonData = {};
+    for (const k in data) {
+      const key = getGKETitle(k);
+      let value = data[k] == null ? '' : data[k];
+      const reg1 = new RegExp('<br/>', 'g');
+      const reg2 = new RegExp('<br />', 'g');
+      value = value.toString().replace(reg1, '\r\n');
+      value = value.toString().replace(reg2, '\r\n');
+      jsonData[key] = value;
+    }
+    newJson.push(jsonData);
+  });
+
+  // 转换为Excel格式
+  const excelData = [];
+  newJson.forEach((v, i) => {
+    keyMap.forEach((k, j) => {
+      const position = (j > 25 ? getCharCol(j) : String.fromCharCode(65 + j)) + (i + 1);
+      excelData.push({
+        v: v[k],
+        position: position
+      });
+    });
+  });
+
+  // 构建worksheet
+  const tmpdata2 = {};
+  excelData.forEach((v) => {
+    tmpdata2[v.position] = { v: v.v };
+  });
+
+  const outputPos = Object.keys(tmpdata2);
+  const tmpWB = {
+    SheetNames: ['mySheet'],
+    Sheets: {
+      mySheet: Object.assign({}, tmpdata2, {
+        '!ref': outputPos[0] + ':' + outputPos[outputPos.length - 1]
+      })
+    }
+  };
+
+  const tmpDown = new Blob(
+    [s2ab(XLSX.write(tmpWB, {
+      bookType: type === undefined ? 'xlsx' : type,
+      bookSST: false,
+      type: 'binary'
+    }))],
+    { type: '' }
+  );
+
+  triggerDownload(tmpDown, fileName);
+}
+
+// 默认导出
+export default {
+  downloadExlTemplate,
+  downloadExl,
+  downloadExlAsset
+};
+```
+
+**使用方法：**
+
+1. 首先安装 xlsx 库：
+```bash
+npm install xlsx
+```
+
+2. 在 Vue 3 组件中使用：
+```vue
+<script setup>
+import { downloadExlTemplate, downloadExl, downloadExlAsset } from '@/utils/xlsxExport';
+
+// 导出模板
+const exportTemplate = () => {
+  const keyMap = [
+    { columnComment: '姓名' },
+    { columnComment: '年龄' },
+    { columnComment: '部门' }
+  ];
+  downloadExlTemplate(keyMap, '员工');
+};
+
+// 导出数据
+const exportData = () => {
+  const data = JSON.stringify([
+    { name: '张三', age: 25 },
+    { name: '李四', age: 30 }
+  ]);
+  const columns = [
+    { refColumnName: 'name', columnComment: '姓名' },
+    { refColumnName: 'age', columnComment: '年龄' }
+  ];
+  downloadExl(data, columns, '员工列表', 'xlsx');
+};
+</script>
+```
+
+主要改动包括：移除了 AngularJS 依赖、使用 ES6 模块导出、用原生 DOM 操作替代 angular.element、添加了独立的日期格式化函数。
