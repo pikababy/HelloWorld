@@ -1,0 +1,89 @@
+仔细对比后，调用方式确实有一些区别：
+
+## 原代码（AngularJS）的调用方式
+
+原代码是通过 AngularJS 的 factory 注入服务来调用的：
+
+```javascript
+// 原代码注入方式
+angular.module('vsmApp').factory('XlsxExportUtils', XlsxExportUtils);
+XlsxExportUtils.$inject = ['$filter', 'FlowTemplate'];
+
+// 原代码调用方式（在 controller 中）
+XlsxExportUtils.downloadExl(json, result, pageName, type);
+XlsxExportUtils.downloadExlTemplate(keyMap, type);
+XlsxExportUtils.downloadExlAsset(json, pageName, type);
+```
+
+原代码中使用了 `$filter('date')` 来格式化日期：
+```javascript
+var nowTime = $filter('date')(new Date(), 'yyyy-MM-dd HH:mm:ss');
+```
+
+## 转换后（Vue 3）的调用方式
+
+```javascript
+// 方式1：按需导入
+import { downloadExl, downloadExlTemplate, downloadExlAsset } from '@/utils/xlsxExport';
+
+downloadExl(json, result, pageName, type);
+downloadExlTemplate(keyMap, type);
+downloadExlAsset(json, pageName, type);
+
+// 方式2：整体导入
+import XlsxExportUtils from '@/utils/xlsxExport';
+
+XlsxExportUtils.downloadExl(json, result, pageName, type);
+XlsxExportUtils.downloadExlTemplate(keyMap, type);
+XlsxExportUtils.downloadExlAsset(json, pageName, type);
+```
+
+## 参数调用完全一致
+
+| 函数 | 参数 | 说明 |
+|-----|------|------|
+| `downloadExlTemplate` | `(keyMap, type)` | keyMap: 列配置数组, type: 文件名前缀 |
+| `downloadExl` | `(json, result, pageName, type)` | json: 数据, result: 列配置, pageName: 文件名, type: 格式 |
+| `downloadExlAsset` | `(json, pageName, type)` | json: 数据, pageName: 文件名, type: 格式 |
+
+## 使用示例对比
+
+```vue
+<script setup>
+import { downloadExl, downloadExlTemplate, downloadExlAsset } from '@/utils/xlsxExport';
+
+// 导出模板 - 调用方式与原代码一致
+const exportTemplate = () => {
+  const keyMap = [
+    { columnComment: '姓名' },
+    { columnComment: '年龄' },
+    { columnComment: '部门' }
+  ];
+  downloadExlTemplate(keyMap, '员工');
+};
+
+// 导出数据 - 调用方式与原代码一致
+const exportData = () => {
+  const json = [
+    { name: '张三', age: 25 },
+    { name: '李四', age: 30 }
+  ];
+  const result = [
+    { refColumnName: 'name', columnComment: '姓名' },
+    { refColumnName: 'age', columnComment: '年龄' }
+  ];
+  downloadExl(json, result, '员工列表', 'xlsx');
+};
+
+// 导出资产数据 - 调用方式与原代码一致
+const exportAsset = () => {
+  const json = [
+    { id: '001', applicationName: '系统A', flowName: '漏洞1' },
+    { id: '002', applicationName: '系统B', flowName: '漏洞2' }
+  ];
+  downloadExlAsset(json, '资产列表', 'xlsx');
+};
+</script>
+```
+
+**结论：函数的参数和调用方式与原代码完全一致**，唯一的区别是导入方式从 AngularJS 的依赖注入变成了 ES6 的模块导入。
