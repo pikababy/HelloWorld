@@ -1,0 +1,80 @@
+## Vue 3 重写方案
+
+### 原始 jQuery 代码
+```javascript
+var ckValues = [];
+$("#vulnerSyncDataTable [type='checkbox']:checked").each(function () {
+    var flowId = $(this).val();
+    if (flowId && flowId != 'on') {
+        ckValues.push($(this).val());
+    }
+});
+```
+
+### Vue 3 方式（推荐）
+
+**方式一：使用响应式数据绑定（最推荐）**
+
+```vue
+<template>
+  <table id="vulnerSyncDataTable">
+    <tr v-for="item in tableData" :key="item.id">
+      <td>
+        <input type="checkbox" :value="item.id" v-model="checkedIds" />
+      </td>
+      <!-- 其他列 -->
+    </tr>
+  </table>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue'
+
+const tableData = ref([/* 表格数据 */])
+const checkedIds = ref([])  // 自动收集选中的ID
+
+// 获取有效的选中值
+const ckValues = computed(() => {
+  return checkedIds.value.filter(id => id && id !== 'on')
+})
+</script>
+```
+
+**方式二：使用 ref 操作 DOM（如果必须操作DOM）**
+
+```vue
+<script setup>
+import { ref } from 'vue'
+
+const tableRef = ref(null)
+
+function getCheckedValues() {
+  const ckValues = []
+  const checkboxes = tableRef.value?.querySelectorAll("input[type='checkbox']:checked")
+  
+  checkboxes?.forEach((checkbox) => {
+    const flowId = checkbox.value
+    if (flowId && flowId !== 'on') {
+      ckValues.push(flowId)
+    }
+  })
+  
+  return ckValues
+}
+</script>
+
+<template>
+  <table ref="tableRef" id="vulnerSyncDataTable">
+    <!-- 表格内容 -->
+  </table>
+</template>
+```
+
+### 对比
+
+| 方式 | 优点 | 缺点 |
+|------|------|------|
+| **v-model 绑定** | 响应式、自动同步、Vue风格 | 需要改造模板结构 |
+| **ref + DOM** | 改动小、兼容旧代码 | 非响应式、不够优雅 |
+
+推荐使用**方式一**，这是 Vue 的惯用做法，数据驱动视图，无需手动操作 DOM。
