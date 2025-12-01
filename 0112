@@ -1,0 +1,33 @@
+## 第92-97行代码解释
+
+```javascript
+$("#vulnerSyncDataTable [type='checkbox']:checked").each(function () {
+    var flowId = $(this).val();
+    if (flowId && flowId != 'on') {
+        ckValues.push($(this).val());
+    }
+});
+```
+
+### 逐行解析
+
+| 行号 | 代码 | 作用 |
+|------|------|------|
+| 92 | `$("#vulnerSyncDataTable [type='checkbox']:checked")` | jQuery选择器：选中表格中**所有已勾选**的复选框 |
+| 92 | `.each(function () {` | 遍历每一个选中的复选框 |
+| 93 | `var flowId = $(this).val();` | 获取当前复选框的 `value` 值 |
+| 94 | `if (flowId && flowId != 'on')` | 判断值是否有效（非空且不是默认的 `'on'`） |
+| 95 | `ckValues.push($(this).val());` | 将有效值添加到数组中 |
+| 97 | `});` | 结束遍历 |
+
+### 为什么要过滤 `'on'`？
+
+当 HTML 中的 checkbox 没有设置 `value` 属性时：
+```html
+<input type="checkbox">  <!-- 没有value属性 -->
+```
+浏览器会返回默认值 `'on'`，这不是实际的数据ID，所以需要排除。
+
+### 最终效果
+
+将用户在表格中勾选的所有记录的ID收集到 `ckValues` 数组中，用于后续的批量导出操作。
