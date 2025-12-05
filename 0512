@@ -1,0 +1,219 @@
+我来帮你分析这个基于 Vben Admin 的树状菜单权限编辑页面开发需求。
+
+根据你提供的截图，我理解你需要：
+
+## 数据结构分析
+
+**菜单数据（附件2）：**
+- 1级菜单：待办事项（menuName: "待办事项", authIdentifier: "UnfinishedList"）
+- 2级菜单：
+  - 待办列表（menuName: "待办列表", authIdentifier: "TodoList"）
+  - 超时列表（menuName: "超时列表", authIdentifier: "TimeoutList"）
+
+**权限数据（附件3）：**
+- authorityCodes 数组包含了用户拥有的权限标识符
+
+## 实现方案
+
+```vue
+<template>
+  <div class="menu-permission-tree">
+    <a-card title="菜单权限管理">
+      <a-tree
+        v-model:checkedKeys="checkedKeys"
+        checkable
+        :tree-data="treeData"
+        :field-names="fieldNames"
+        @check="onCheck"
+      >
+        <template #title="{ title, key }">
+          <span>{{ title }}</span>
+        </template>
+      </a-tree>
+      
+      <div class="action-buttons">
+        <a-button type="primary" @click="handleSave">保存</a-button>
+        <a-button @click="handleCancel">取消</a-button>
+      </div>
+    </a-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import type { TreeProps } from 'ant-design-vue';
+
+// 菜单项接口
+interface MenuItem {
+  id: number;
+  menuName: string;
+  authIdentifier: string;
+  menuType: string;
+  parentMenu: string | null;
+  menuSequence: string;
+  status: string;
+  children?: MenuItem[];
+}
+
+// 字段映射
+const fieldNames = {
+  title: 'menuName',
+  key: 'authIdentifier',
+  children: 'children'
+};
+
+// 选中的权限标识
+const checkedKeys = ref<string[]>([]);
+
+// 原始菜单数据
+const menuData = ref<MenuItem[]>([]);
+
+// 转换菜单数据为树形结构
+const buildMenuTree = (data: MenuItem[]): MenuItem[] => {
+  const map = new Map<string, MenuItem>();
+  const tree: MenuItem[] = [];
+  
+  // 先将所有节点存入 map
+  data.forEach(item => {
+    map.set(item.authIdentifier, { ...item, children: [] });
+  });
+  
+  // 构建树形结构
+  data.forEach(item => {
+    const node = map.get(item.authIdentifier)!;
+    if (item.parentMenu === null || item.parentMenu === 'UnfinishedList') {
+      // 如果是顶级节点或者父节点是 UnfinishedList
+      if (item.parentMenu === null) {
+        tree.push(node);
+      } else {
+        const parent = map.get(item.parentMenu);
+        if (parent) {
+          parent.children!.push(node);
+        }
+      }
+    } else {
+      // 其他二级节点
+      const parent = map.get(item.parentMenu);
+      if (parent) {
+        parent.children!.push(node);
+      }
+    }
+  });
+  
+  return tree;
+};
+
+// 树形数据
+const treeData = computed(() => {
+  return buildMenuTree(menuData.value);
+});
+
+// 处理选中事件
+const onCheck: TreeProps['onCheck'] = (checked, info) => {
+  console.log('选中的权限：', checked);
+  checkedKeys.value = checked as string[];
+};
+
+// 从权限数据初始化选中状态
+const initCheckedKeys = (authorityCodes: string[]) => {
+  // 只选中用户已有的权限
+  checkedKeys.value = authorityCodes;
+};
+
+// 保存权限
+const handleSave = async () => {
+  try {
+    // 这里调用你的 API 保存权限
+    console.log('保存的权限标识：', checkedKeys.value);
+    
+    // 示例 API 调用
+    // await updateUserPermissions({
+    //   userId: currentUserId,
+    //   authorityCodes: checkedKeys.value
+    // });
+    
+    // 显示成功提示
+    // message.success('保存成功');
+  } catch (error) {
+    console.error('保存失败：', error);
+    // message.error('保存失败');
+  }
+};
+
+// 取消操作
+const handleCancel = () => {
+  // 重置为初始状态或返回上一页
+};
+
+// 组件挂载时获取数据
+onMounted(async () => {
+  try {
+    // 获取菜单数据（你的附件2数据）
+    // const menuResponse = await getMenuList();
+    // menuData.value = menuResponse.data;
+    
+    // 获取用户权限数据（你的附件3数据）
+    // const permissionResponse = await getUserPermissions(userId);
+    // initCheckedKeys(permissionResponse.data.authorityCodes);
+    
+    // 模拟数据（基于你的附件）
+    menuData.value = [
+      {
+        id: 1,
+        menuName: '待办事项',
+        authIdentifier: 'UnfinishedList',
+        menuType: '0',
+        parentMenu: null,
+        menuSequence: '1',
+        status: '1'
+      },
+      {
+        id: 2,
+        menuName: '待办列表',
+        authIdentifier: 'TodoList',
+        menuType: '0',
+        parentMenu: 'UnfinishedList',
+        menuSequence: '1',
+        status: '1'
+      },
+      {
+        id: 3,
+        menuName: '超时列表',
+        authIdentifier: 'TimeoutList',
+        menuType: '0',
+        parentMenu: 'UnfinishedList',
+        menuSequence: '2',
+        status: '1'
+      }
+    ];
+    
+    // 模拟已有权限
+    initCheckedKeys(['TimeEffectManagement', 'ProcessManagement', 'SecurityProcess']);
+  } catch (error) {
+    console.error('数据加载失败：', error);
+  }
+});
+</script>
+
+<style scoped lang="less">
+.menu-permission-tree {
+  padding: 16px;
+  
+  .action-buttons {
+    margin-top: 24px;
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+  }
+}
+</style>
+```
+
+## 关键要点
+
+1. **树形结构构建**：根据 `parentMenu` 字段将平铺的菜单数据转换为树形结构
+2. **权限标识映射**：使用 `authIdentifier` 作为节点的唯一标识
+3. **父子联动**：Ant Design Vue 的 Tree 组件默认支持父子节点联动选中
+4. **数据保存**：将选中的 `authIdentifier` 数组提交到后端
+
+需要我详细说明某个具体部分吗？
