@@ -1,0 +1,11 @@
+首次分配权限时默认显示所有菜单且不勾选的实现
+在你的权限管理组件中，树状图已经通过 treeData 显示所有菜单（基于 menuData 构建）。默认不勾选的问题在于 initCheckedKeys 函数会根据 authorityCodes 设置 checkedKeys，但对于首次分配权限（用户无现有权限），应传入空数组 []，让所有节点默认未勾选。
+核心思路
+	•	通过组件 props 或外部参数判断是否为“首次分配”（e.g., isFirstAssign: true）。
+	•	如果是首次，checkedKeys 初始为空；否则，从权限数据初始化。
+	•	保持树展开（基于上一个回复的 expandedKeys），确保所有菜单可见。
+步骤 1: 添加 props 支持首次分配场景
+在
+步骤 4: 保持树默认展开（可选，基于上一个回复）
+确保 有 :default-expanded-keys="expandedKeys"，这样首次加载时所有父菜单展开，子菜单可见（即使未勾选）。
+完整
