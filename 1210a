@@ -1,0 +1,151 @@
+<template>
+  <div class="asset-owner-selector">
+    <a-form :model="formState" layout="horizontal" :rules="rules">
+      <!-- 资产选择 -->
+      <a-form-item label="资产" v-bind="formItemLayout" name="asset">
+        <a-select
+          v-model:value="formState.assetId"
+          placeholder="请选择资产"
+          :options="assetOptions"
+          @change="handleAssetChange"
+          style="width: 200px;"
+        />
+      </a-form-item>
+
+      <!-- 属主选择（资产选后必填） -->
+      <a-form-item label="属主" v-bind="formItemLayout" name="owner">
+        <a-select
+          v-model:value="formState.ownerId"
+          placeholder="请选择属主"
+          :options="ownerOptions"
+          :disabled="!formState.assetId"
+          style="width: 200px;"
+        />
+      </a-form-item>
+
+      <!-- 添加按钮 -->
+      <a-form-item>
+        <a-button type="primary" @click="addItem" :disabled="!canAdd">
+          添加
+        </a-button>
+        <a-button @click="resetSelection" style="margin-left: 8px;">重置</a-button>
+      </a-form-item>
+    </a-form>
+
+    <!-- 展示列表 -->
+    <a-table
+      :data-source="selectedItems"
+      :columns="columns"
+      row-key="assetId"
+      bordered
+      style="margin-top: 16px;"
+    >
+      <template #actions="{ record }">
+        <a-button size="small" @click="deleteItem(record)" danger>删除</a-button>
+      </template>
+    </a-table>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, watch } from 'vue';
+import { message } from 'ant-design-vue';
+
+// 模拟数据（实际从API获取）
+const assetOptions = ref([
+  { label: '资产A', value: 'asset1' },
+  { label: '资产B', value: 'asset2' },
+  { label: '资产C', value: 'asset3' },
+]);
+const ownerOptions = ref([
+  { label: '属主X', value: 'owner1' },
+  { label: '属主Y', value: 'owner2' },
+  { label: '属主Z', value: 'owner3' },
+]);
+
+// 表单状态
+const formState = reactive({
+  assetId: null,
+  ownerId: null,
+});
+
+// 选中项列表
+const selectedItems = ref([]);
+
+// 验证规则
+const rules = {
+  asset: [{ required: true, message: '请选择资产' }],
+  owner: [{ required: true, message: '请选择属主' }],
+};
+
+// 布局
+const formItemLayout = {
+  labelCol: { span: 6 },
+  wrapperCol: { span: 18 },
+};
+
+// 计算属性：是否可添加（资产和属主都选了）
+const canAdd = computed(() => !!formState.assetId && !!formState.ownerId);
+
+// 监听资产变化，重置属主
+const handleAssetChange = (value) => {
+  if (!value) {
+    formState.ownerId = null;
+  }
+};
+
+// 添加项
+const addItem = () => {
+  // 简单验证（实际用form.validate）
+  if (!formState.assetId || !formState.ownerId) {
+    message.error('请完整选择资产和属主');
+    return;
+  }
+
+  // 检查是否重复（可选，根据业务）
+  const exists = selectedItems.value.some(item => item.assetId === formState.assetId);
+  if (exists) {
+    message.warning('该资产已添加');
+    return;
+  }
+
+  // 添加到列表
+  const assetLabel = assetOptions.value.find(opt => opt.value === formState.assetId)?.label || '';
+  const ownerLabel = ownerOptions.value.find(opt => opt.value === formState.ownerId)?.label || '';
+  selectedItems.value.push({
+    key: Date.now(), // 临时key
+    assetId: formState.assetId,
+    assetName: assetLabel,
+    ownerId: formState.ownerId,
+    ownerName: ownerLabel,
+  });
+
+  message.success('添加成功');
+  resetSelection();
+};
+
+// 删除项
+const deleteItem = (record) => {
+  selectedItems.value = selectedItems.value.filter(item => item.key !== record.key);
+  message.success('删除成功');
+};
+
+// 重置选择
+const resetSelection = () => {
+  formState.assetId = null;
+  formState.ownerId = null;
+};
+
+// Table列
+const columns = [
+  { title: '资产', dataIndex: 'assetName', key: 'assetName' },
+  { title: '属主', dataIndex: 'ownerName', key: 'ownerName' },
+  { title: '操作', key: 'actions', slots: { customRender: 'actions' } },
+];
+</script>
+
+<style scoped>
+.asset-owner-selector {
+  padding: 20px;
+}
+</style>
