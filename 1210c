@@ -1,0 +1,200 @@
+<template>
+  <div class="asset-owner-selector">
+    <a-form :model="formState" layout="horizontal" :rules="rules">
+      <!-- 资产选择（单选） -->
+      <a-form-item label="资产" v-bind="formItemLayout" name="asset">
+        <a-select
+          v-model:value="formState.assetId"
+          placeholder="请选择资产"
+          :options="assetOptions"
+          @change="handleAssetChange"
+          style="width: 200px;"
+        />
+      </a-form-item>
+
+      <!-- 属主选择（多选） -->
+      <a-form-item label="属主" v-bind="formItemLayout" name="owner">
+        <a-select
+          v-model:value="formState.ownerIds"
+          mode="multiple"
+          placeholder="请选择属主（可多选）"
+          :options="ownerOptions"
+          :disabled="!formState.assetId && !isEditing"
+          style="width: 200px;"
+        />
+      </a-form-item>
+
+      <!-- 操作按钮 -->
+      <a-form-item>
+        <a-button type="primary" @click="addItem" :disabled="!canAdd">
+          {{ isEditing ? '更新' : '添加' }}
+        </a-button>
+        <a-button @click="resetSelection" style="margin-left: 8px;" v-if="isEditing">
+          取消
+        </a-button>
+        <a-button @click="resetSelection" style="margin-left: 8px;" v-else>
+          重置
+        </a-button>
+      </a-form-item>
+    </a-form>
+
+    <!-- 标签列表 -->
+    <div class="tags-container">
+      <a-tag
+        v-for="item in selectedItems"
+        :key="item.key"
+        :closable="true"
+        :close-icon="minusIcon"
+        @close="deleteItem(item)"
+        @click="editItem(item)"
+        color="blue"
+        style="margin: 4px; cursor: pointer; max-width: 300px; overflow: hidden; text-overflow: ellipsis;"
+      >
+        {{ item.assetName }} - {{ item.ownerNames.join(', ') }}
+      </a-tag>
+      <a-empty v-if="selectedItems.length === 0" :image="a-empty.PRESENTED_IMAGE_SIMPLE" />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed } from 'vue';
+import { message } from 'ant-design-vue';
+import { MinusOutlined } from '@ant-design/icons-vue';
+import { Empty } from 'ant-design-vue'; // 导入Empty
+
+const { PRESENTED_IMAGE_SIMPLE } = Empty; // 空状态图标
+
+// 模拟数据（不变）
+const assetOptions = ref([
+  { label: '资产A', value: 'asset1' },
+  { label: '资产B', value: 'asset2' },
+  { label: '资产C', value: 'asset3' },
+]);
+const ownerOptions = ref([
+  { label: '属主X', value: 'owner1' },
+  { label: '属主Y', value: 'owner2' },
+  { label: '属主Z', value: 'owner3' },
+]);
+
+// 表单状态（ownerId改为数组）
+const formState = reactive({
+  assetId: null,
+  ownerIds: [], // 数组
+});
+
+// 选中项列表（扩展为多属主）
+const selectedItems = ref([]);
+
+// 编辑状态
+const isEditing = ref(false);
+const editingKey = ref(null);
+
+// 减号图标
+const minusIcon = () => <MinusOutlined />;
+
+// 验证规则（调整owner规则）
+const rules = {
+  asset: [{ required: true, message: '请选择资产' }],
+  owner: [{ required: true, type: 'array', min: 1, message: '请选择至少一个属主' }],
+};
+const formItemLayout = {
+  labelCol: { span: 6 },
+  wrapperCol: { span: 18 },
+};
+
+// 计算属性：是否可添加/更新（至少一个属主）
+const canAdd = computed(() => !!formState.assetId && formState.ownerIds.length > 0);
+
+// 监听资产变化（编辑模式下不重置）
+const handleAssetChange = (value) => {
+  if (!isEditing.value && !value) {
+    formState.ownerIds = [];
+  }
+};
+
+// 编辑项（填充数组）
+const editItem = (record) => {
+  formState.assetId = record.assetId;
+  formState.ownerIds = [...record.ownerIds]; // 复制数组
+  isEditing.value = true;
+  editingKey.value = record.key;
+  message.info('进入编辑模式，请修改后点击更新');
+};
+
+// 添加/更新项
+const addItem = () => {
+  // 验证（实际可集成form.validate）
+  if (!formState.assetId || formState.ownerIds.length === 0) {
+    message.error('请完整选择资产和至少一个属主');
+    return;
+  }
+
+  // 收集labels
+  const ownerNames = formState.ownerIds.map(id => 
+    ownerOptions.value.find(opt => opt.value === id)?.label || ''
+  ).filter(Boolean);
+
+  const newItem = {
+    key: editingKey.value || Date.now(),
+    assetId: formState.assetId,
+    assetName: assetOptions.value.find(opt => opt.value === formState.assetId)?.label || '',
+    ownerIds: [...formState.ownerIds],
+    ownerNames,
+  };
+
+  if (isEditing.value) {
+    const index = selectedItems.value.findIndex(item => item.key === editingKey.value);
+    if (index !== -1) {
+      selectedItems.value[index] = newItem;
+      message.success('更新成功');
+    }
+  } else {
+    // 检查资产重复
+    const exists = selectedItems.value.some(item => item.assetId === formState.assetId);
+    if (exists) {
+      message.warning('该资产已添加（一个资产只能对应一组属主）');
+      return;
+    }
+    selectedItems.value.push(newItem);
+    message.success('添加成功');
+  }
+  resetSelection();
+};
+
+// 删除项（整个组）
+const deleteItem = (record) => {
+  selectedItems.value = selectedItems.value.filter(item => item.key !== record.key);
+  if (isEditing.value && record.key === editingKey.value) {
+    resetSelection();
+  }
+  message.success('删除成功');
+};
+
+// 重置选择
+const resetSelection = () => {
+  formState.assetId = null;
+  formState.ownerIds = [];
+  isEditing.value = false;
+  editingKey.value = null;
+};
+</script>
+
+<style scoped>
+.asset-owner-selector {
+  padding: 20px;
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 8px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 6px;
+  min-height: 60px;
+  align-items: center;
+  justify-content: flex-start;
+}
+</style>
