@@ -173,3 +173,117 @@ const handleSubmit = async () => {
 attachment - 接收新上传的文件
 existingAttachments - JSON 字符串，包含要保留的已有文件信息
 这样就不会出现 [object Object] 的问题了！需要我帮您调整您项目中的具体代码吗？
+
+
+
+eee
+是的，通常需要后端配合，但具体取决于您的业务需求和后端接口设计：
+
+方案对比
+方案	后端配合度	说明
+方案 A	✅ 需要配合	前端传 existingFiles 和 newFiles，后端分别处理
+方案 B	⚠️ 部分配合	后端只接收新文件，已有文件通过 path 字段判断保留
+方案 C	❌ 不需要配合	后端采用"全量替换"逻辑，前端必须重新上传所有文件
+方案 B（推荐，最简单）
+如果后端可以通过文件路径判断是否为已有文件：
+
+javascript
+const handleSubmit = async () => {
+  const formData = new FormData();
+  
+  attachmentList.value.forEach((item) => {
+    if (item.originFileObj || item.file) {
+      // 新文件：传 File 对象
+      formData.append('attachment', item.originFileObj || item.file);
+    } else {
+      // 已有文件：传路径字符串
+      formData.append('attachment', item.path || item.url);
+    }
+  });
+  
+  // 其他表单数据...
+  await api.submit(formData);
+};
+后端逻辑：
+
+收到 
+File
+ 类型 → 保存新文件
+收到 String 类型（路径） → 保留原文件
+方案 C（全量替换，无需配合）
+如果后端接口设计为每次提交都全量替换所有文件：
+
+javascript
+// 用户必须保留所有想要的文件在 fileList 中
+// 删除的文件会在提交时被后端删除
+const handleSubmit = async () => {
+  const formData = new FormData();
+  
+  // 只提交新文件
+  attachmentList.value.forEach((item) => {
+    if (item.originFileObj) {
+      formData.append('attachment', item.originFileObj);
+    }
+  });
+  
+  // 已有文件路径列表（让后端知道保留哪些）
+  const keepPaths = attachmentList.value
+    .filter(item => !item.originFileObj && item.path)
+    .map(item => item.path);
+  
+  formData.append('keepFiles', JSON.stringify(keepPaths));
+  
+  await api.submit(formData);
+};
+建议
+先确认后端接口设计 - 问后端同事现在的接口是怎样处理编辑场景的
+如果后端还没考虑这个场景，推荐使用方案 B，改动最小
+您的后端接口目前是怎样设计的？是只接收文件还是也能接收路径？
+
+
+rrrr
+
+
+明白了！既然后端已经可以通过 path 字段实现下载，说明后端是知道文件存储位置的。
+
+推荐的编辑提交方案
+只需和后端约定：提交时传递要保留的文件路径列表
+
+javascript
+const handleSubmit = async () => {
+  const formData = new FormData();
+  
+  // 1. 收集要保留的已有文件路径
+  const keepFilePaths = [];
+  
+  // 2. 收集新上传的文件
+  attachmentList.value.forEach((item) => {
+    if (item.originFileObj || item.file) {
+      // 新文件：添加到 FormData
+      formData.append('attachment', item.originFileObj || item.file);
+    } else if (item.path) {
+      // 已有文件：记录路径，告诉后端保留
+      keepFilePaths.push(item.path);
+    }
+  });
+  
+  // 3. 传递要保留的文件路径列表
+  if (keepFilePaths.length > 0) {
+    formData.append('keepFilePaths', JSON.stringify(keepFilePaths));
+  }
+  
+  // 4. 其他表单字段...
+  formData.append('jsonObject', JSON.stringify({ /* ... */ }));
+  
+  await api.submit(formData);
+};
+后端处理逻辑
+收到请求后：
+1. 获取 keepFilePaths 数组
+2. 删除该记录下不在 keepFilePaths 中的旧文件
+3. 保存新上传的 attachment 文件
+4. 更新数据库记录
+需要后端改动
+只需后端新增一个参数：keepFilePaths，接收 JSON 字符串数组，表示用户希望保留的已有文件路径。
+
+这个改动很小，和后端沟通一下应该很快能实现！
