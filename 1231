@@ -1,0 +1,175 @@
+qqq：
+根据您的截图，我理解了您的场景：
+
+API 返回的文件数据格式：
+
+json
+{
+  "responseCode": "20000",
+  "responseMsg": "success",
+  "data": [
+    {
+      "path": "D:\\vsm_attachment\\1767085335899\\组件漏洞批量2.xlsx",
+      "name": "组件漏洞批量2.xlsx",
+      "size": "8729"
+    }
+  ]
+}
+解决方案
+在编辑页面中，需要将接口返回的文件信息转换为 a-upload 组件的 fileList 格式，然后区分"已有文件"和"新上传文件"：
+
+vue
+<template>
+  <a-upload
+    v-model:fileList="fileList"
+    :before-upload="beforeUpload"
+    :custom-request="customUpload"
+    @remove="handleRemove"
+  >
+    <a-button>选择文件</a-button>
+  </a-upload>
+</template>
+<script setup>
+import { ref, onMounted } from 'vue'
+const fileList = ref([])
+const removedFileIds = ref([]) // 记录被删除的已有文件
+// 页面加载时，获取详情并初始化文件列表
+onMounted(async () => {
+  const res = await fetchDetail() // 获取详情接口
+  
+  // 将接口返回的文件转换为 fileList 格式
+  fileList.value = res.data.map((file, index) => ({
+    uid: `existing-${index}`,      // 唯一标识
+    name: file.name,               // 文件名
+    size: Number(file.size),       // 文件大小
+    status: 'done',                // 状态：已完成
+    url: file.path,                // 文件路径（用于下载/预览）
+    isExisting: true,              // 自定义标记：区分已有文件
+    originData: file               // 保留原始数据
+  }))
+})
+// 删除文件
+const handleRemove = (file) => {
+  if (file.isExisting) {
+    // 已有文件被删除，记录下来提交时告诉后端
+    removedFileIds.value.push(file.originData.path)
+  }
+  return true
+}
+// 提交表单
+const handleSubmit = async () => {
+  // 分离新文件和保留的已有文件
+  const existingFiles = fileList.value
+    .filter(f => f.isExisting)
+    .map(f => f.originData)
+  
+  const newFiles = fileList.value
+    .filter(f => !f.isExisting && f.originFileObj)
+    .map(f => f.originFileObj)
+  
+  const formData = new FormData()
+  
+  // 添加新文件
+  newFiles.forEach(file => {
+    formData.append('files', file)
+  })
+  
+  // 告诉后端保留哪些已有文件
+  formData.append('existingFiles', JSON.stringify(existingFiles))
+  
+  // 告诉后端删除哪些文件
+  formData.append('removedFiles', JSON.stringify(removedFileIds.value))
+  
+  await submitApi(formData)
+}
+</script>
+关键点说明
+要点	说明
+uid 唯一标识	必须为每个文件设置唯一的 uid，已有文件用 existing-${index}
+status: 'done'	已有文件状态设为 done，表示已上传完成
+isExisting 标记	自定义属性，用于区分"已有文件"和"新上传文件"
+originFileObj	新上传文件的原始 File 对象，用于提交
+removedFileIds	记录被删除的已有文件，提交时通知后端删除
+需要我帮您在当前项目中创建一个完整的编辑页面示例吗？
+
+
+
+
+
+wwww
+根据您的代码截图，我看到了问题所在！
+
+问题分析
+您的代码中：
+
+javascript
+const arr = attachmentList.value.map((i) => {
+  if (i.file) {
+    return i.file;      // ✅ 新文件，返回 File 对象
+  } else {
+    return { ...i };    // ❌ 已有文件，返回普通对象
+  }
+});
+arr.forEach((i) => {
+  formData.append('attachment', i);  // ❌ 对象会变成 [object Object]
+});
+Network 面板显示 attachment: [object Object]，说明已有文件被当作普通对象传了。
+
+解决方案
+需要将新文件和已有文件分开处理：
+
+javascript
+const handleSubmit = async () => {
+  const formData = new FormData();
+  
+  // 分离新文件和已有文件
+  const newFiles = [];      // 新上传的文件
+  const existingFiles = []; // 已有的文件（来自接口）
+  
+  attachmentList.value.forEach((item) => {
+    if (item.originFileObj) {
+      // 新文件：有 originFileObj 属性
+      newFiles.push(item.originFileObj);
+    } else if (item.file) {
+      // 新文件：有 file 属性（兼容写法）
+      newFiles.push(item.file);
+    } else {
+      // 已有文件：没有 File 对象，只有文件信息
+      existingFiles.push({
+        name: item.name,
+        path: item.url || item.path,
+        size: item.size
+      });
+    }
+  });
+  
+  // 1. 添加新文件到 FormData
+  newFiles.forEach((file) => {
+    formData.append('attachment', file);
+  });
+  
+  // 2. 已有文件作为 JSON 传递（告诉后端保留这些文件）
+  formData.append('existingAttachments', JSON.stringify(existingFiles));
+  
+  // 3. 添加其他表单字段
+  formData.append('jsonObject', JSON.stringify({
+    assetName: formState.assetName,
+    cveNumber: formState.cveNumber,
+    // ... 其他字段
+  }));
+  
+  console.log('新文件数量:', newFiles.length);
+  console.log('保留的已有文件:', existingFiles);
+  
+  await api.submitSecurityForm(formData);
+};
+关键区别
+类型	判断条件	FormData 处理方式
+新上传文件	有 originFileObj 或 file 属性	formData.append('attachment', file)
+已有文件	只有 name、path、size 等信息	formData.append('existingAttachments', JSON.stringify(...))
+后端配合
+后端需要同时处理两个字段：
+
+attachment - 接收新上传的文件
+existingAttachments - JSON 字符串，包含要保留的已有文件信息
+这样就不会出现 [object Object] 的问题了！需要我帮您调整您项目中的具体代码吗？
